@@ -4,3 +4,37 @@
 canvas{touch-action:none}
 
 .touch-dash{display:none;position:absolute;right:15px;bottom:55px;width:48px;height:48px;border:1px solid #c3ee8c;background:#263d2bd9;border-radius:50%;color:#d6ffae;font-size:22px;z-index:2;touch-action:manipulation}.touch-dash small{display:block;font:700 7px Space Grotesk;margin-top:-3px}@media (pointer:coarse){.touch-dash{display:block}}
+
+/* ---- equipped weapon strip ---- */
+.arsenal{position:absolute;top:58px;left:23px;display:flex;flex-wrap:wrap;gap:6px;max-width:60%;pointer-events:none;z-index:2}
+.ars-chip{display:flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid #4c6150;background:#14201acc;backdrop-filter:blur(3px);border-radius:3px}
+.ars-chip i{font-style:normal;font-size:13px;color:#c8f18c;line-height:1}
+.ars-chip em{font:700 8px 'Space Grotesk';font-style:normal;letter-spacing:1px;color:#9fd276}
+.ars-chip.awake{border-color:#c6baff;box-shadow:0 0 12px #b6a7ff55;background:#241f38cc}
+.ars-chip.awake i{color:#cfc3ff}
+.ars-chip.awake em{color:#c6baff}
+.ars-empty{font:600 8px 'Space Grotesk';letter-spacing:.12em;color:#7f927f;padding:4px 0}
+
+/* ---- weapon cards ---- */
+.upgrade-card.weapon{border-color:#7ba05c;background:linear-gradient(160deg,#26352a,#1c2a22)}
+.upgrade-card.weapon:hover{border-color:#d6ff9a;background:linear-gradient(160deg,#31452f,#22321f)}
+.upgrade-card.weapon .card-icon{color:#e2ffa8;text-shadow:0 0 18px #b6f26999}
+.upgrade-card.weapon h3{color:#f2ffe0}
+.card-pips{position:absolute;right:15px;bottom:15px;font:700 9px 'Space Grotesk';letter-spacing:2px;color:#a9d888}
+.upgrade-card.near-awake{border-color:#a79be0;box-shadow:inset 0 0 30px #a79be01f}
+.upgrade-card.near-awake .card-pips{color:#cfc3ff}
+.upgrade-card.near-awake .card-level{color:#d3c8ff}
+
+/* health bar reacts to damage */
+.health-bar i{transition:width .12s linear;background:linear-gradient(90deg,#8fd45c,#c9f77b)}
+.health-bar{box-shadow:inset 0 0 0 1px #ffffff10}
+.stage-progress i,.xp-bar i{transition:width .18s ease-out}
+
+@media(max-width:700px){
+  .arsenal{top:50px;left:10px;gap:4px;max-width:88%;max-height:44px;overflow:hidden}
+  .ars-chip{padding:2px 5px}
+  .ars-chip i{font-size:11px}
+  .ars-chip em{font-size:7px}
+  .ars-empty{font-size:7px}
+  .card-pips{right:8px;bottom:8px;font-size:7px;letter-spacing:1px}
+}
