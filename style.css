@@ -25,6 +25,22 @@ canvas{touch-action:none}
 .upgrade-card.near-awake .card-pips{color:#cfc3ff}
 .upgrade-card.near-awake .card-level{color:#d3c8ff}
 
+/* ---- boss health bar ---- */
+.boss-bar{position:absolute;top:16px;left:50%;transform:translateX(-50%);width:min(52%,520px);z-index:2;pointer-events:none}
+.boss-meta{display:flex;align-items:center;gap:8px;font:700 9px 'Space Grotesk';letter-spacing:.1em;color:#ffd9c9;margin-bottom:5px}
+.boss-tag{color:#ff8f8f;font-size:8px;border:1px solid #ff8f8f66;padding:2px 5px;border-radius:2px;background:#ff8f8f14}
+.boss-meta b{font:800 11px 'Noto Sans JP';letter-spacing:.04em;color:#fff0e8;text-shadow:0 1px 6px #000}
+.boss-meta em{font-style:normal;color:#c9a79c;font-size:8px}
+.boss-meta span:last-child{margin-left:auto;color:#e8c8bc;font-size:8px}
+.boss-track{height:7px;background:#2a1a1a;border:1px solid #6b3a3a;box-shadow:inset 0 0 10px #00000080}
+.boss-track i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff7a5c,#ffb066 60%,#ffe0a8);transition:width .12s linear;box-shadow:0 0 12px #ff8f8f88}
+.boss-bar.low .boss-track i{background:linear-gradient(90deg,#ff4d4d,#ff8f8f);animation:bossPulse .7s infinite alternate}
+@keyframes bossPulse{from{opacity:.65}to{opacity:1}}
+
+/* pickups & elite chips */
+.ars-count.elite{color:#ffd39a;border-color:#8a6a3c}
+.ars-count.frenzy{color:#ff9de0;border-color:#8a4a76;animation:bossPulse .5s infinite alternate}
+
 /* summon / trap card themes */
 .upgrade-card.summon{border-color:#9a8fd0;background:linear-gradient(160deg,#2a2740,#20202f)}
 .upgrade-card.summon:hover{border-color:#d8ccff;background:linear-gradient(160deg,#35304f,#252438)}
@@ -44,6 +60,9 @@ canvas{touch-action:none}
 .stage-progress i,.xp-bar i{transition:width .18s ease-out}
 
 @media(max-width:700px){
+  .boss-bar{top:6px;width:74%}
+  .boss-meta b{font-size:9px}
+  .boss-meta em{display:none}
   .arsenal{top:50px;left:10px;gap:4px;max-width:88%;max-height:44px;overflow:hidden}
   .ars-chip{padding:2px 5px}
   .ars-chip i{font-size:11px}

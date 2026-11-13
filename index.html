@@ -25,6 +25,10 @@
             <div class="canvas-vignette"></div>
             <button id="touchDash" class="touch-dash" aria-label="ダッシュ">ϟ<small>DASH</small></button>
             <div class="hud" id="hud"><div class="hud-left"><div class="hud-label">STAGE <b id="stageNumber">01</b></div><div class="stage-progress"><i id="stageFill"></i></div><div class="hud-sub"><span>次のステージまで</span><b id="timer">00:30</b></div></div><div class="hud-right"><span>生存クローン</span><b id="cloneCount">00</b><i></i><span>撃破</span><b id="killCount">00</b></div></div>
+            <div class="boss-bar hidden" id="bossBar">
+              <div class="boss-meta"><span class="boss-tag">◆ BOSS</span><b id="bossName">—</b><em id="bossSub"></em><span id="bossPercent">0 / 0</span></div>
+              <div class="boss-track"><i id="bossFill"></i></div>
+            </div>
             <div class="arsenal" id="arsenal"></div>
             <div class="bottom-hud"><div class="player-id"><div class="player-avatar">✦</div><div><strong>YOU <span> / プレイヤー</span></strong><div class="health-bar"><i id="healthFill"></i></div></div><b id="healthText">100 <small>/ 100</small></b></div><div class="xp-block"><span>LV. <b id="level">01</b></span><div class="xp-bar"><i id="xpFill"></i></div><span id="xpText">0 / 100 XP</span></div></div>
             <div class="overlay" id="startOverlay"><div class="start-card"><div class="start-kicker"><span class="live-dot"></span> SYSTEM ONLINE <span class="slash">//</span> READY?</div><div class="start-symbol"><span>✦</span><i></i></div><p class="start-overline">THE ARENA IS WAITING</p><h2>仲間とともに、<br><em>生き残れ。</em></h2><p class="start-description">ショットガン、ゾンビ召喚、チェインライトニング……<br>武器を重ねて覚醒させ、敵の群れを生き延びろ。</p><button id="startBtn" class="primary-btn">ゲームを開始 <span>↗</span></button><div class="start-controls"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動</span><span><kbd>SPACE</kbd> ダッシュ</span><span>✦ 攻撃は自動</span></div></div></div>
@@ -40,7 +44,7 @@
       <aside class="sidebar">
         <div class="side-title"><span>FIELD GUIDE</span><span>01 — 03</span></div>
         <div class="side-intro"><div class="side-heading"><span class="number">01</span><span class="mini-icon">✳</span></div><h3>武器を集め、生き残る。</h3><p>押し寄せる敵を倒し、ステージ終了まで生き残ろう。攻撃は自動、移動に集中。</p><div class="legend"><span><i class="legend-you"></i> YOU</span><span><i class="legend-enemy"></i> ENEMY</span><span><i class="legend-clone"></i> ALLY CLONE</span></div></div>
-        <div class="side-intro"><div class="side-heading"><span class="number">02</span><span class="mini-icon orange">◉</span></div><h3>自分自身が、仲間になる。</h3><p>ステージクリアごとに味方のクローンが出現。初期装備から始まり、学習しながら一緒に戦う。</p><div class="clone-note"><span>↗</span><div><b>CLONES ARE ALLIES</b><small>クローンも、死んだら終わり。</small></div></div></div>
+        <div class="side-intro"><div class="side-heading"><span class="number">02</span><span class="mini-icon orange">◉</span></div><h3>自分自身が、仲間になる。</h3><p>ステージクリアごとに味方のクローンが出現。5ステージごとにはボスが待ち受ける。</p><div class="clone-note"><span>↗</span><div><b>CLONES ARE ALLIES</b><small>クローンも、死んだら終わり。</small></div></div></div>
         <div class="side-intro last"><div class="side-heading"><span class="number">03</span><span class="mini-icon purple">✦</span></div><h3>選択が、力になる。</h3><p>射撃・召喚・トラップの10種類の武装。同じカードを重ねると性能が上がる。</p><div class="upgrade-mini"><span>Ⅰ</span><span>Ⅱ</span><span class="awaken">✦</span><small>LEVEL UP → AWAKEN</small></div></div>
         <div class="side-footer"><span>GOOD LUCK, SURVIVOR.</span><span>↗</span></div>
       </aside>
