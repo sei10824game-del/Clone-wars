@@ -12,31 +12,56 @@ const keys = new Set();
  *  WEAPONS  — each has 3 levels. Picking the same card again upgrades. *
  * ------------------------------------------------------------------ */
 const WEAPONS = [
-  {id:'shotgun', icon:'✳', name:'ショットガン',
+  {id:'shotgun', icon:'✳', name:'ショットガン', tag:'RANGED',
    levels:[
      '扇状に5発の散弾を撃ち出す。近距離で全弾命中させると強力。',
      '散弾が7発に増え、射程と威力が上昇。弾が1体を貫通する。',
      '覚醒：11発に増加。全弾貫通し、敵を大きく吹き飛ばす。']},
-  {id:'zombie', icon:'☠', name:'ゾンビコール',
+  {id:'zombie', icon:'☠', name:'ゾンビコール', tag:'SUMMON',
    levels:[
      '一定時間ごとにゾンビを1体召喚。敵に噛みついて攻撃する。',
      '召喚数が2体に増え、ゾンビのHP・攻撃力・寿命が上昇。',
      '覚醒：3体を召喚。ゾンビは消える時、周囲で自爆する。']},
-  {id:'chain', icon:'ϟ', name:'チェインライトニング',
+  {id:'chain', icon:'ϟ', name:'チェインライトニング', tag:'RANGED',
    levels:[
      '敵に電撃を放ち、近くの敵へ連鎖する（最大2体）。',
      '連鎖数が3体に増え、威力と連鎖距離が上昇。',
      '覚醒：最大5体へ連鎖。感電した敵を麻痺させる。']},
-  {id:'orbit', icon:'✜', name:'オービットブレード',
+  {id:'orbit', icon:'✜', name:'オービットブレード', tag:'RANGED',
    levels:[
      '自分の周囲を1枚の刃が旋回し、触れた敵を切り裂く。',
      '刃が2枚に増え、回転と威力が上がる。',
      '覚醒：刃が4枚になり、攻撃範囲が大きく広がる。']},
-  {id:'nova', icon:'❄', name:'フロストノヴァ',
+  {id:'nova', icon:'❄', name:'フロストノヴァ', tag:'RANGED',
    levels:[
      '一定時間ごとに冷気を放出し、周囲の敵を攻撃する。',
      'ノヴァの範囲と威力が上昇し、間隔が短くなる。',
-     '覚醒：ヒットした敵を凍結させ、動きを大きく鈍らせる。']}
+     '覚醒：ヒットした敵を凍結させ、動きを大きく鈍らせる。']},
+  {id:'drone', icon:'⌖', name:'サポートドローン', tag:'SUMMON',
+   levels:[
+     '自分に追従するドローンを1機召喚。自動で敵を撃つ。',
+     'ドローンが2機に増え、連射速度と威力が上がる。',
+     '覚醒：3機になり、レーザーが敵を貫通する。']},
+  {id:'wisp', icon:'✧', name:'スピリットウィスプ', tag:'SUMMON',
+   levels:[
+     '一定時間ごとにウィスプを召喚。敵に突撃して爆発する。',
+     '召喚数が2体に増え、爆発範囲と威力が上昇。',
+     '覚醒：3体を召喚。爆発が大きく広がり、敵をよろけさせる。']},
+  {id:'mine', icon:'◉', name:'マインフィールド', tag:'TRAP',
+   levels:[
+     '足元に地雷を設置。敵が近づくと爆発する。',
+     '設置間隔が短くなり、爆発範囲と威力が上昇。',
+     '覚醒：設置数が増え、広範囲を吹き飛ばす。']},
+  {id:'spike', icon:'✶', name:'スパイクマット', tag:'TRAP',
+   levels:[
+     '足元に棘の罠を設置。踏んだ敵に継続ダメージ。',
+     '罠の範囲とダメージが上昇し、長く残る。',
+     '覚醒：棘が大型化し、敵の動きを止めることがある。']},
+  {id:'poison', icon:'☣', name:'ポイズンゾーン', tag:'TRAP',
+   levels:[
+     '足元に毒の沼を設置。触れた敵を持続的に蝕む。',
+     '沼が広がり、毒のダメージと持続時間が上昇。',
+     '覚醒：強毒になり、敵を大きく弱らせる。']}
 ];
 
 const WEAPON_SPEC = {
@@ -59,21 +84,41 @@ const WEAPON_SPEC = {
   nova:[
     {radius:105, dmg:.90, cd:2.8},
     {radius:132, dmg:1.10, cd:2.3},
-    {radius:168, dmg:1.40, cd:1.8}]
+    {radius:168, dmg:1.40, cd:1.8}],
+  drone:[
+    {count:1, rate:1.30, dmg:.50, range:300, pierce:0},
+    {count:2, rate:1.00, dmg:.60, range:330, pierce:0},
+    {count:3, rate:.78,  dmg:.70, range:360, pierce:1}],
+  wisp:[
+    {count:1, cd:4.8, dmg:1.05, radius:52, life:5.5},
+    {count:2, cd:4.0, dmg:1.20, radius:64, life:6.5},
+    {count:3, cd:3.2, dmg:1.40, radius:78, life:7.5}],
+  mine:[
+    {cd:4.2, dmg:1.35, radius:70,  max:4,  arm:.60, trigger:36},
+    {cd:3.4, dmg:1.55, radius:84,  max:6,  arm:.50, trigger:40},
+    {cd:2.4, dmg:1.80, radius:104, max:9,  arm:.40, trigger:46}],
+  spike:[
+    {cd:3.4, radius:46, dmg:.40, life:6.0, max:4, tick:.55},
+    {cd:2.7, radius:56, dmg:.52, life:7.0, max:6, tick:.50},
+    {cd:2.0, radius:68, dmg:.64, life:8.0, max:8, tick:.45}],
+  poison:[
+    {cd:3.6, radius:58, dmg:.42, life:5.5, max:4, tick:.55},
+    {cd:2.8, radius:70, dmg:.55, life:6.5, max:6, tick:.50},
+    {cd:2.1, radius:86, dmg:.68, life:7.5, max:8, tick:.45}]
 };
 
 const STATS = [
-  {id:'power', icon:'✹', name:'パワーショット',
+  {id:'power', icon:'✹', name:'パワーショット', tag:'STAT',
    levels:['すべての攻撃のダメージ +20%。','さらに +20%。','覚醒：ダメージが大幅に上昇する。']},
-  {id:'bullet', icon:'➶', name:'アクセル弾',
+  {id:'bullet', icon:'➶', name:'アクセル弾', tag:'STAT',
    levels:['弾速と射程がアップ。','さらに弾速と射程がアップ。','覚醒：射程が大きく伸びる。']},
-  {id:'speed', icon:'➤', name:'スピードブースト',
+  {id:'speed', icon:'➤', name:'スピードブースト', tag:'STAT',
    levels:['移動速度がアップ。','さらに移動速度がアップ。','覚醒：大きく軽快になる。']},
-  {id:'vital', icon:'♥', name:'バイタリティ',
+  {id:'vital', icon:'♥', name:'バイタリティ', tag:'STAT',
    levels:['最大HP +20。HPも回復。','最大HP +20。HPも回復。','覚醒：最大HP +40、大きく回復。']},
-  {id:'regen', icon:'✚', name:'リジェネレーション',
+  {id:'regen', icon:'✚', name:'リジェネレーション', tag:'STAT',
    levels:['時間とともにHPが回復。','回復量が増える。','覚醒：回復量がさらに増加。']},
-  {id:'dash', icon:'»', name:'クイックステップ',
+  {id:'dash', icon:'»', name:'クイックステップ', tag:'STAT',
    levels:['ダッシュの再使用時間が短縮。','さらに短縮。','覚醒：ほぼ連続で使える。']}
 ];
 
@@ -93,7 +138,7 @@ function fighter(x,y,clone=false){
   return {
     x, y, clone, hp:100, maxHp:100, level:1, xp:0,
     upgrades:{}, weapons:{rifle:1},
-    cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0},
+    cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0, wisp:0, mine:0, spike:0, poison:0},
     orbitPhase:rand(0,TAU), blades:[],
     shoot:rand(.05,.4), dashCd:0, dashTime:0, invuln:0, hit:0, muzzle:0, cast:0,
     angle:clone?rand(0,TAU):-Math.PI/2, alive:true, decision:0, action:0, state:null, reward:0,
@@ -104,6 +149,7 @@ function newGame(){
   game = {
     state:'ready', stage:1, time:30, elapsed:0, kills:0,
     player:fighter(W/2,H/2), clones:[], enemies:[], bullets:[], minions:[],
+    drones:[], wisps:[], hazards:[],
     particles:[], texts:[], beams:[], rings:[], sparks:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:''
   };
@@ -134,12 +180,12 @@ function cardPool(f){
   const pool = [];
   for(const d of WEAPONS){
     const lv = weaponLevel(f,d.id);
-    if(lv < 3) pool.push({id:d.id, icon:d.icon, name:d.name, kind:'weapon', level:lv,
-      desc:d.levels[Math.min(lv,2)], burst:lv===0});
+    if(lv < 3) pool.push({id:d.id, icon:d.icon, name:d.name, kind:'weapon', tag:d.tag,
+      level:lv, desc:d.levels[Math.min(lv,2)], burst:lv===0});
   }
   for(const d of STATS){
     const lv = f.upgrades[d.id]||0;
-    if(lv < 3) pool.push({id:d.id, icon:d.icon, name:d.name, kind:'stat', level:lv,
+    if(lv < 3) pool.push({id:d.id, icon:d.icon, name:d.name, kind:'stat', tag:d.tag, level:lv,
       desc:d.levels[Math.min(lv,2)]});
   }
   return pool;
@@ -167,7 +213,9 @@ function applyCard(f,id){
     const lv = weaponLevel(f,id);
     if(lv >= 3) return;
     f.weapons[id] = lv + 1;
-    if(id === 'zombie' && lv === 0) f.cd.zombie = .5;
+    const cdKey = {zombie:'zombie', wisp:'wisp', mine:'mine', spike:'spike', poison:'poison'}[id];
+    if(lv === 0 && cdKey) f.cd[cdKey] = .45;
+    if(id === 'drone') syncDrones(f);
     return;
   }
   const lv = f.upgrades[id]||0;
@@ -211,7 +259,8 @@ function updateArsenal(){
     const lv = weaponLevel(game.player,d.id);
     if(lv > 0) owned.push({icon:d.icon,name:d.name,lv});
   }
-  const sig = owned.map(o=>o.icon+o.lv).join('|');
+  const sig = owned.map(o=>o.icon+o.lv).join('|')
+    + '#' + (game.minions.length+game.wisps.length+game.drones.length) + '/' + game.hazards.length;
   if(sig === game.arsenalSig) return;
   game.arsenalSig = sig;
   if(!owned.length){
@@ -221,7 +270,7 @@ function updateArsenal(){
   box.innerHTML = owned.map(o=>{
     const pips = '◆'.repeat(o.lv) + '◇'.repeat(3-o.lv);
     return `<span class="ars-chip${o.lv>=3?' awake':''}" title="${o.name} Lv.${o.lv}${o.lv>=3?' 覚醒':''}"><i>${o.icon}</i><em>${pips}</em></span>`;
-  }).join('');
+  }).join('') + `<span class="ars-count" title="召喚中のユニット / 設置中のトラップ">⚔${game.minions.length+game.wisps.length+game.drones.length} ◈${game.hazards.length}</span>`;
 }
 function notice(title,sub){
   const el = $('announcement');
@@ -244,12 +293,17 @@ function showCards(){
   box.replaceChildren();
   availableCards(game.player).forEach((card,i)=>{
     const lv = card.kind==='heal' ? 0 : card.level;
-    const kindLabel = card.kind==='weapon' ? 'WEAPON' : card.kind==='stat' ? 'UPGRADE' : 'RECOVERY';
+    const kindLabel = card.kind==='weapon' ? (card.tag || 'WEAPON')
+      : card.kind==='stat' ? 'UPGRADE' : 'RECOVERY';
+    const cls = 'upgrade-card'
+      + (card.kind==='weapon' ? ' weapon' : '')
+      + (card.tag==='SUMMON' ? ' summon' : card.tag==='TRAP' ? ' trap' : '')
+      + (lv>=2 ? ' near-awake' : '');
     const levelText = card.kind==='heal' ? 'RECOVERY'
       : card.kind==='weapon' && lv===0 ? 'NEW WEAPON'
       : lv>=3 ? 'MAX' : lv===2 ? 'NEXT: 覚醒 ✦' : 'LV. '+lv+' → '+(lv+1);
     const button = document.createElement('button');
-    button.className = 'upgrade-card'+(card.kind==='weapon'?' weapon':'')+(lv>=2?' near-awake':'');
+    button.className = cls;
     button.innerHTML = `<span class="card-index">${kindLabel}</span>
       <span class="card-level">${levelText}</span>
       <span class="card-icon">${card.icon}</span>
@@ -271,8 +325,9 @@ function showCards(){
           particles(p.x,p.y,'#d9ccff',26,1.5);
           shake = Math.min(shake+3, 5);
         } else {
-          game.rings.push({x:p.x,y:p.y,r:14,maxR:110,life:.6,max:.6,color:'#dcff9e',width:3});
-          particles(p.x,p.y,'#dcff9e',16,1.2);
+          const tint = card.tag==='TRAP' ? '#ffb066' : card.tag==='SUMMON' ? '#c4b5ff' : '#dcff9e';
+          game.rings.push({x:p.x,y:p.y,r:14,maxR:110,life:.6,max:.6,color:tint,width:3});
+          particles(p.x,p.y,tint,16,1.2);
         }
       }
       game.pick++;
@@ -316,6 +371,8 @@ function stageClear(){
   game.enemies = [];
   game.bullets = [];
   game.beams = [];
+  game.hazards = [];
+  game.wisps = [];
   const xp = 100 + (game.stage-1)*25;
   const fighters = [game.player, ...game.clones.filter(c=>c.alive)];
   for(const f of fighters) grantXp(f, xp);
@@ -475,6 +532,127 @@ function orbitTick(f,dt,s){
     }
   }
 }
+/* --- summon: support drones ------------------------------------- */
+function syncDrones(f){
+  const lv = f.weapons.drone || 0;
+  const want = lv ? WEAPON_SPEC.drone[lv-1].count : 0;
+  const owned = game.drones.filter(d=>d.owner===f);
+  if(owned.length > want){
+    for(const d of owned.slice(want)) d.alive = false;
+  }
+  for(let i=owned.length;i<want;i++){
+    if(game.drones.length >= 22) break;
+    const a = i*TAU/Math.max(1,want) - Math.PI/2;
+    game.drones.push({
+      owner:f, lv, x:f.x+Math.cos(a)*46, y:f.y+Math.sin(a)*46,
+      orbit:a, phase:a, fire:rand(.1,.5), hit:0, alive:true, seed:rand(0,100)
+    });
+    particles(f.x, f.y, '#9fe6ff', 6);
+  }
+}
+function droneFire(d, target, s){
+  const lv = d.lv, spec = WEAPON_SPEC.drone[lv-1];
+  const a = Math.atan2(target.y-d.y, target.x-d.x);
+  const sp = s.bulletSpeed*1.15;
+  game.bullets.push({
+    x:d.x, y:d.y, px:d.x, py:d.y,
+    vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+    life:spec.range/sp, maxLife:spec.range/sp,
+    damage:s.damage*spec.dmg, owner:d.owner, r:3, pierce:spec.pierce,
+    hitList:[], color:'#9fe6ff', droneShot:true
+  });
+  d.fire = spec.rate;
+}
+/* --- summon: kamikaze wisps ------------------------------------- */
+function summonWisp(f){
+  const lv = weaponLevel(f,'wisp'), spec = WEAPON_SPEC.wisp[lv-1];
+  f.cd.wisp = spec.cd;
+  for(let i=0;i<spec.count;i++){
+    if(game.wisps.length >= 14) break;
+    const a = rand(0,TAU), r = rand(28,54);
+    const wx = clamp(f.x+Math.cos(a)*r, 20, W-20), wy = clamp(f.y+Math.sin(a)*r, 20, H-20);
+    game.wisps.push({
+      owner:f, lv, x:wx, y:wy, dmg:spec.dmg, radius:spec.radius,
+      life:spec.life, maxLife:spec.life, bob:rand(0,7), seed:rand(0,100),
+      hit:0, alive:true, trail:rand(0,1)
+    });
+    particles(wx, wy, '#c4b5ff', 8);
+    game.rings.push({x:wx,y:wy,r:5,maxR:32,life:.35,max:.35,color:'#c4b5ff',width:2});
+  }
+  f.cast = .26;
+}
+/* --- traps ------------------------------------------------------ */
+function placeTrap(f, kind){
+  const lv = weaponLevel(f,kind), spec = WEAPON_SPEC[kind][lv-1];
+  f.cd[kind] = spec.cd;
+  if(game.hazards.filter(h=>h.kind===kind && h.owner===f).length >= spec.max){
+    const old = game.hazards.find(h=>h.kind===kind && h.owner===f);
+    if(old) old.alive = false;
+  }
+  if(game.hazards.length >= 70) game.hazards.shift();
+  const idx = game.hazards.length % 7;
+  const spread = kind === 'mine' ? 72 : kind === 'spike' ? 30 : 36;
+  const ang = f.angle + Math.PI + rand(-1.2, 1.2);
+  const px = kind === 'mine'
+    ? clamp(f.x + Math.cos(ang)*rand(28, spread), 30, W-30)
+    : clamp(f.x + Math.cos(ang)*rand(6, spread), 24, W-24);
+  const py = kind === 'mine'
+    ? clamp(f.y + Math.sin(ang)*rand(28, spread), 30, H-30)
+    : clamp(f.y + Math.sin(ang)*rand(6, spread), 24, H-24);
+  game.hazards.push({
+    kind, lv, owner:f, x:px, y:py, r:spec.radius,
+    dmg:spec.dmg, tick:0, tickRate:spec.tick || .45,
+    life: spec.life || 999, maxLife: spec.life || 999,
+    arm: spec.arm || 0, trigger: spec.trigger || 0,
+    blown:false, seed:rand(0,100), idx, alive:true
+  });
+  particles(f.x, f.y, kind==='poison'?'#9be36b':kind==='spike'?'#cfd8e8':'#ffb066', 6, .8);
+}
+function detonateMine(h){
+  if(h.blown) return;
+  h.blown = true;
+  h.alive = false;
+  const dmg = h.dmg * stat(h.owner).damage;
+  for(const e of game.enemies){
+    if(e.alive && dist(h,e) < h.r) hurt(e, dmg, h.owner);
+  }
+  game.rings.push({x:h.x,y:h.y,r:10,maxR:h.r,life:.45,max:.45,color:'#ffca8a',width:6});
+  game.rings.push({x:h.x,y:h.y,r:4,maxR:h.r*.6,life:.3,max:.3,color:'#fff3d0',width:10});
+  particles(h.x, h.y, '#ffb066', 22, 1.6);
+  particles(h.x, h.y, '#ffe6b8', 12, 1.2);
+  shake = Math.min(shake+3.2, 6);
+}
+function updateHazards(dt){
+  for(const h of game.hazards){
+    if(!h.alive) continue;
+    if(h.kind === 'mine'){
+      if(h.arm > 0){ h.arm -= dt; continue; }
+      for(const e of game.enemies){
+        if(e.alive && dist(h,e) < h.trigger){ detonateMine(h); break; }
+      }
+      continue;
+    }
+    h.life -= dt;
+    if(h.life <= 0){ h.alive = false; continue; }
+    h.tick -= dt;
+    if(h.tick > 0) continue;
+    h.tick = h.tickRate;
+    const dmg = h.dmg * stat(h.owner).damage;
+    for(const e of game.enemies){
+      if(!e.alive) continue;
+      if(dist(h,e) < h.r + e.r*.5){
+        hurt(e, dmg, h.owner);
+        if(h.kind === 'spike'){
+          e.slow = Math.max(e.slow, .35);
+          if(h.lv >= 3 && Math.random() < .25) e.stun = Math.max(e.stun, .3);
+        } else if(h.kind === 'poison'){
+          e.slow = Math.max(e.slow, .7);
+        }
+      }
+    }
+  }
+  game.hazards = game.hazards.filter(h=>h.alive);
+}
 function updateWeapons(f,dt,target){
   const s = stat(f), w = f.weapons;
   f.cd.rifle -= dt;
@@ -500,6 +678,16 @@ function updateWeapons(f,dt,target){
     if(f.cd.zombie <= 0) summonZombie(f);
   }
   if(w.orbit) orbitTick(f,dt,s);
+  if(w.drone) syncDrones(f);
+  if(w.wisp){
+    f.cd.wisp -= dt;
+    if(f.cd.wisp <= 0) summonWisp(f);
+  }
+  for(const kind of ['mine','spike','poison']){
+    if(!w[kind]) continue;
+    f.cd[kind] -= dt;
+    if(f.cd[kind] <= 0) placeTrap(f, kind);
+  }
 }
 
 /* ------------------------------ effects --------------------------- */
@@ -725,6 +913,60 @@ function tick(dt){
     }
   }
   game.minions = game.minions.filter(m=>m.alive);
+
+  // --- support drones follow their owner and open fire -------------
+  for(const d of game.drones){
+    if(!d.alive) continue;
+    const o = d.owner;
+    if(!o || !o.alive){ d.alive = false; continue; }
+    d.hit = Math.max(0, d.hit-dt);
+    d.phase += dt*1.5;
+    const radius = 44 + Math.sin(d.phase)*6;
+    const a = d.orbit + Math.sin(d.phase*.6)*.25;
+    const tx = o.x + Math.cos(a)*radius, ty = o.y + Math.sin(a)*radius;
+    d.x += (tx-d.x)*Math.min(1, dt*7);
+    d.y += (ty-d.y)*Math.min(1, dt*7);
+    d.fire -= dt;
+    const [t] = nearest(d);
+    const spec = WEAPON_SPEC.drone[d.lv-1];
+    if(d.fire <= 0 && t && dist(d,t) <= spec.range) droneFire(d, t, stat(o));
+  }
+  game.drones = game.drones.filter(d=>d.alive);
+
+  // --- kamikaze wisps seek the nearest enemy and explode -----------
+  for(const w of game.wisps){
+    if(!w.alive) continue;
+    w.life -= dt;
+    w.hit = Math.max(0, w.hit-dt);
+    const [t] = nearest(w);
+    if(t){
+      const d = dist(w,t) || 1;
+      const sp = 168;
+      w.x = clamp(w.x + (t.x-w.x)/d*sp*dt, 12, W-12);
+      w.y = clamp(w.y + (t.y-w.y)/d*sp*dt, 12, H-12);
+      if(d < (t.r||13) + 12){ w.alive = false; w.boomed = true; }
+    } else {
+      w.x = clamp(w.x + Math.cos(w.bob+w.life)*22*dt, 12, W-12);
+      w.y = clamp(w.y + Math.sin(w.bob+w.life*1.3)*22*dt, 12, H-12);
+    }
+    if(w.life <= 0){ w.alive = false; w.boomed = true; }
+    if(w.boomed){
+      const dmg = w.dmg * stat(w.owner).damage;
+      for(const e of game.enemies){
+        if(e.alive && dist(w,e) < w.radius){
+          hurt(e, dmg, w.owner);
+          if(w.lv >= 3) e.stun = Math.max(e.stun, .35);
+        }
+      }
+      game.rings.push({x:w.x,y:w.y,r:8,maxR:w.radius,life:.42,max:.42,color:'#c4b5ff',width:5});
+      particles(w.x, w.y, '#c4b5ff', 18, 1.4);
+      shake = Math.min(shake+1.6, 5);
+    }
+  }
+  game.wisps = game.wisps.filter(w=>w.alive);
+
+  // --- traps: mines / spikes / poison ------------------------------
+  updateHazards(dt);
 
   for(const b of game.bullets){
     b.px = b.x; b.py = b.y;
@@ -1306,6 +1548,207 @@ function drawMinion(m,t){
   rrect(ctx, m.x-w/2, m.y+16, w*p, 3, 1.5); ctx.fill();
 }
 
+/* ---------------------------- summons ----------------------------- */
+function drawDrone(d,t){
+  const bob = Math.sin(t*6+d.seed)*1.6;
+  ctx.save();
+  ctx.translate(d.x, d.y+bob);
+  ctx.fillStyle = 'rgba(6,12,10,.30)';
+  ctx.beginPath(); ctx.ellipse(0, 19, 9, 3.4, 0, 0, TAU); ctx.fill();
+  glow(GLOW.blue, 0, 0, 56, .55);
+
+  // arms + spinning rotors
+  const spin = t*30;
+  for(const sx of [-1,1]){
+    ctx.strokeStyle = 'rgba(120,160,172,.75)';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(sx*5, -2); ctx.lineTo(sx*11, -6);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(196,240,252,.65)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.ellipse(sx*11, -6, 7, 2.2 + Math.sin(spin)*.6, 0, 0, TAU);
+    ctx.stroke();
+  }
+
+  // chassis
+  const dg = ctx.createLinearGradient(0,-9,0,10);
+  dg.addColorStop(0,'#eaf9ff');
+  dg.addColorStop(.42,'#9ed3e4');
+  dg.addColorStop(.72,'#4b7d90');
+  dg.addColorStop(1,'#264450');
+  ctx.fillStyle = d.hit>0 ? '#ffffff' : dg;
+  ctx.beginPath();
+  ctx.moveTo(-9,-4);
+  ctx.quadraticCurveTo(-9,-10, 0,-10);
+  ctx.quadraticCurveTo(9,-10, 9,-4);
+  ctx.quadraticCurveTo(9.5,7, 0,9);
+  ctx.quadraticCurveTo(-9.5,7, -9,-4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(8,18,22,.65)';
+  ctx.lineWidth = 1.3;
+  ctx.stroke();
+
+  // cyan eye lens
+  glow(GLOW.blue, 0, -1, 22, .9);
+  ctx.fillStyle = '#7ff0ff';
+  ctx.beginPath(); ctx.ellipse(0, -1, 4.4, 3.2, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.beginPath(); ctx.arc(-1.2, -2, 1.2, 0, TAU); ctx.fill();
+
+  // underside gun pods
+  ctx.fillStyle = '#2b3f47';
+  rrect(ctx, -6, 6, 3.4, 7, 1.4); ctx.fill();
+  rrect(ctx, 2.6, 6, 3.4, 7, 1.4); ctx.fill();
+  ctx.fillStyle = '#ff9d5c';
+  ctx.beginPath(); ctx.arc(-4.3, 13, 1.1, 0, TAU); ctx.arc(4.3, 13, 1.1, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+function drawWisp(w,t){
+  const pulse = .85 + Math.sin(t*7+w.bob)*.15;
+  const flick = Math.sin(t*13+w.seed)*1.6;
+  ctx.save();
+  ctx.translate(w.x, w.y + Math.sin(t*4+w.bob)*2.6);
+  glow(GLOW.purple, 0, 0, 64*pulse, .7);
+  glow(GLOW.white, 0, 0, 24*pulse, .8);
+  // flame body
+  ctx.fillStyle = 'rgba(232,224,255,.95)';
+  ctx.beginPath();
+  ctx.moveTo(0, -13*pulse + flick*.4);
+  ctx.quadraticCurveTo(9*pulse, -2, 5*pulse, 7*pulse);
+  ctx.quadraticCurveTo(0, 12*pulse, -5*pulse, 7*pulse);
+  ctx.quadraticCurveTo(-9*pulse, -2, 0, -13*pulse + flick*.4);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(198,182,255,.85)';
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 4.2*pulse, 5.4*pulse, 0, 0, TAU);
+  ctx.fill();
+  // sparks
+  for(let i=0;i<3;i++){
+    const a = t*3 + i*2.1;
+    ctx.fillStyle = 'rgba(220,210,255,.6)';
+    ctx.beginPath();
+    ctx.arc(Math.cos(a)*9, Math.sin(a*1.4)*7, 1.2, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+  // fuse
+  const p = clamp(w.life/w.maxLife,0,1);
+  ctx.fillStyle = 'rgba(8,14,10,.6)';
+  rrect(ctx, w.x-9, w.y+16, 18, 2.6, 1.3); ctx.fill();
+  ctx.fillStyle = '#c4b5ff';
+  rrect(ctx, w.x-9, w.y+16, 18*p, 2.6, 1.3); ctx.fill();
+}
+
+/* ------------------------------- traps ---------------------------- */
+function drawHazard(h,t){
+  const k = h.kind === 'mine' ? 1 : clamp(h.life/Math.min(h.maxLife, 3), 0, 1);
+  ctx.save();
+  ctx.translate(h.x, h.y);
+  if(h.kind === 'mine'){
+    const arm = h.arm > 0 ? .5+.5*Math.sin(t*24) : 1;
+    glow(GLOW.red, 0, 0, h.trigger*3.6, .38*arm);
+    // blast radius hint
+    ctx.strokeStyle = `rgba(255,140,90,${.16*arm})`;
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([5,7]);
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.92, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    // trap plate
+    ctx.fillStyle = 'rgba(20,28,24,.9)';
+    ctx.beginPath(); ctx.arc(0, 0, h.trigger*.6, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,176,102,.75)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(0, 0, h.trigger*.6, 0, TAU); ctx.stroke();
+    ctx.rotate(t*1.6);
+    for(let i=0;i<8;i++){
+      const a = i*TAU/8;
+      ctx.strokeStyle = 'rgba(255,140,90,.5)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*h.trigger*.3, Math.sin(a)*h.trigger*.3);
+      ctx.lineTo(Math.cos(a)*h.trigger*.58, Math.sin(a)*h.trigger*.58);
+      ctx.stroke();
+    }
+    ctx.rotate(-t*1.6);
+    glow(GLOW.amber, 0, 0, 20, .5*arm);
+    ctx.fillStyle = h.arm > 0 ? '#ffd7a0' : '#ff9d5c';
+    ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill();
+  } else if(h.kind === 'spike'){
+    ctx.fillStyle = 'rgba(24,34,30,.55)';
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.96, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,140,150,.35)';
+    ctx.lineWidth = 1.2;
+    for(let i=0;i<3;i++){
+      ctx.beginPath(); ctx.arc(0, 0, h.r*(.35+i*.22), 0, TAU); ctx.stroke();
+    }
+    const rg = ctx.createRadialGradient(0,0,4,0,0,h.r);
+    rg.addColorStop(0, `rgba(206,216,232,${.20*k})`);
+    rg.addColorStop(.7, `rgba(150,168,190,${.13*k})`);
+    rg.addColorStop(1, 'rgba(120,140,160,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(0, 0, h.r, 0, TAU); ctx.fill();
+    const spikes = h.lv >= 3 ? 9 : 7;
+    for(let i=0;i<spikes;i++){
+      const a = i*TAU/spikes + h.seed;
+      const rr = h.r*(.55 + (i%2)*.3);
+      const x = Math.cos(a)*rr, y = Math.sin(a)*rr;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(a + Math.PI/2);
+      ctx.fillStyle = `rgba(232,242,255,${.92*k})`;
+      ctx.beginPath();
+      ctx.moveTo(0, -10.5);
+      ctx.lineTo(5, 5.5);
+      ctx.lineTo(-5, 5.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = `rgba(30,44,56,${.7*k})`;
+      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.strokeStyle = `rgba(210,225,240,${.28*k})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.92, 0, TAU); ctx.stroke();
+  } else {
+    ctx.fillStyle = `rgba(20,38,22,${.55*k})`;
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.95, 0, TAU); ctx.fill();
+    const rg = ctx.createRadialGradient(0,0,6,0,0,h.r);
+    rg.addColorStop(0, `rgba(150,230,110,${.34*k})`);
+    rg.addColorStop(.6, `rgba(110,190,80,${.22*k})`);
+    rg.addColorStop(1, 'rgba(80,150,60,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(0, 0, h.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(170,240,130,${.30*k})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.86, 0, TAU); ctx.stroke();
+    // bubbles
+    for(let i=0;i<6;i++){
+      const a = h.seed + i*1.7 + t*.6;
+      const rr = h.r*(.25 + ((i*37)%10)/14);
+      const bx = Math.cos(a)*rr, by = Math.sin(a*1.3)*rr*.8;
+      const br = 2 + Math.sin(t*3 + i)*1.2;
+      ctx.fillStyle = `rgba(190,255,150,${.35*k})`;
+      ctx.beginPath(); ctx.arc(bx, by, Math.max(.6,br), 0, TAU); ctx.fill();
+    }
+  }
+  ctx.restore();
+  // lifetime ring for timed traps
+  if(h.kind !== 'mine' && h.life < h.maxLife - .4 && h.maxLife < 50){
+    const p = clamp(h.life/h.maxLife, 0, 1);
+    ctx.strokeStyle = h.kind === 'poison' ? 'rgba(150,230,110,.45)' : 'rgba(210,225,240,.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(h.x, h.y, h.r*.98, -Math.PI/2, -Math.PI/2 + TAU*p);
+    ctx.stroke();
+  }
+}
+
 /* ------------------------------ render ---------------------------- */
 function render(t){
   ctx.setTransform(1,0,0,1,0,0);
@@ -1326,7 +1769,11 @@ function render(t){
   }
   ctx.globalAlpha = 1;
 
+  // traps sit flat on the floor, under everything else
+  for(const h of game.hazards) drawHazard(h,t);
   for(const m of game.minions) drawMinion(m,t);
+  for(const d of game.drones) drawDrone(d,t);
+  for(const w of game.wisps) drawWisp(w,t);
   for(const e of game.enemies) drawEnemy(e,t);
   for(const c of game.clones) drawFighter(c,t);
   drawFighter(game.player,t);
@@ -1361,7 +1808,9 @@ function render(t){
   // bullets
   for(const b of game.bullets){
     const lifeK = clamp(b.life/b.maxLife,0,1);
-    glow(b.color==='#b8ff83'||b.color==='#d9ffa1'?GLOW.green:GLOW.amber, b.x, b.y, b.r*9, .85);
+    const bulb = b.color==='#b8ff83'||b.color==='#d9ffa1' ? GLOW.green
+      : b.color==='#9fe6ff' ? GLOW.blue : GLOW.amber;
+    glow(bulb, b.x, b.y, b.r*9, .85);
     ctx.strokeStyle = b.color;
     ctx.globalAlpha = .45*lifeK;
     ctx.lineWidth = b.r*.8;

@@ -25,6 +25,19 @@ canvas{touch-action:none}
 .upgrade-card.near-awake .card-pips{color:#cfc3ff}
 .upgrade-card.near-awake .card-level{color:#d3c8ff}
 
+/* summon / trap card themes */
+.upgrade-card.summon{border-color:#9a8fd0;background:linear-gradient(160deg,#2a2740,#20202f)}
+.upgrade-card.summon:hover{border-color:#d8ccff;background:linear-gradient(160deg,#35304f,#252438)}
+.upgrade-card.summon .card-icon{color:#d9ccff;text-shadow:0 0 18px #b9a8ff99}
+.upgrade-card.summon .card-index{color:#b7a9e8}
+.upgrade-card.trap{border-color:#c08352;background:linear-gradient(160deg,#372b20,#28211a)}
+.upgrade-card.trap:hover{border-color:#ffc287;background:linear-gradient(160deg,#463526,#302619)}
+.upgrade-card.trap .card-icon{color:#ffc98f;text-shadow:0 0 18px #ff9d5c99}
+.upgrade-card.trap .card-index{color:#dda878}
+
+.ars-count{display:flex;align-items:center;padding:4px 8px;border:1px solid #3f5344;background:#101a15aa;
+  border-radius:3px;font:700 8px 'Space Grotesk';letter-spacing:.5px;color:#8fb08b}
+
 /* health bar reacts to damage */
 .health-bar i{transition:width .12s linear;background:linear-gradient(90deg,#8fd45c,#c9f77b)}
 .health-bar{box-shadow:inset 0 0 0 1px #ffffff10}
