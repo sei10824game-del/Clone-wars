@@ -70,3 +70,171 @@ canvas{touch-action:none}
   .ars-empty{font-size:7px}
   .card-pips{right:8px;bottom:8px;font-size:7px;letter-spacing:1px}
 }
+
+/* ================= MOBILE / TOUCH ================= */
+.top-actions{display:flex;align-items:center;gap:8px}
+.fs-btn{display:none}
+.touch-only{display:none}
+@media (pointer:coarse){.fs-btn{display:inline-flex;align-items:center}}
+@media (pointer:coarse){.kb-only{display:none!important}.touch-only{display:inline}}
+
+/* virtual joystick */
+.touch-stick{display:none;position:absolute;left:0;top:0;width:132px;height:132px;z-index:2;pointer-events:none;
+  opacity:0;transition:opacity .15s;will-change:left,top}
+.touch-stick.on{opacity:1}
+.touch-stick .stick-base{position:absolute;inset:0;border-radius:50%;border:1px solid #c8f59a44;background:radial-gradient(circle,#c8f59a12,#0d1611aa 70%);box-shadow:inset 0 0 22px #0b120e88}
+.touch-stick .stick-knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
+  border:1px solid #cdf59f88;background:#2b4030e0;box-shadow:0 0 18px #aef06a55,inset 0 0 12px #c8f59a33;transition:transform .06s linear}
+.touch-stick .stick-hint{position:absolute;left:0;right:0;bottom:-16px;text-align:center;font:700 7px 'Space Grotesk';letter-spacing:.18em;color:#9fbd93}
+@media (pointer:coarse){.touch-stick{display:block}}
+
+/* bigger, thumb-friendly touch targets */
+@media (pointer:coarse){
+  .touch-dash{width:64px;height:64px;right:14px;bottom:calc(64px + env(safe-area-inset-bottom,0px));font-size:26px;left:auto}
+  .touch-dash small{font-size:8px}
+  .pause-btn{padding:11px 13px}
+  .upgrade-card{min-height:0}
+}
+
+/* safe areas (notches / home indicator) */
+@supports(padding:env(safe-area-inset-left)){
+  .app{padding-left:calc(42px + env(safe-area-inset-left,0px));padding-right:calc(42px + env(safe-area-inset-right,0px))}
+  .footer{padding-bottom:calc(19px + env(safe-area-inset-bottom,0px))}
+}
+
+/* ---------- immersive fullscreen mode ---------- */
+body.immersive{overflow:hidden;background:#0a100d}
+body.immersive .app{padding:0;max-width:none}
+body.immersive .topbar,body.immersive .section-heading,body.immersive .game-topline,
+body.immersive .game-bottomline,body.immersive .under-game,body.immersive .sidebar,
+body.immersive .footer{display:none!important}
+body.immersive .layout{display:block;padding:0;gap:0}
+body.immersive .game-frame{border:0;box-shadow:none;background:#111c16;height:100vh;height:100dvh;display:flex;flex-direction:column}
+body.immersive .canvas-wrap{flex:1;aspect-ratio:auto!important;height:100%;min-height:0;position:relative;overflow:hidden;background:#0a100d}
+body.immersive canvas{width:auto;height:auto}
+body.immersive .hud{top:calc(10px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px))}
+body.immersive .bottom-hud{bottom:calc(12px + env(safe-area-inset-bottom,0px));left:calc(14px + env(safe-area-inset-left,0px));right:calc(14px + env(safe-area-inset-right,0px))}
+body.immersive .boss-bar{top:calc(8px + env(safe-area-inset-top,0px))}
+body.immersive .arsenal{top:calc(58px + env(safe-area-inset-top,0px));left:calc(14px + env(safe-area-inset-left,0px))}
+
+.fs-tools{display:none;position:absolute;right:calc(10px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));z-index:5;gap:6px;align-items:center}
+body.immersive .fs-tools{display:flex}
+.fs-tools .exit-fs{position:static;display:inline-flex}
+.exit-fs{display:none;position:absolute;right:calc(12px + env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));z-index:4;
+  align-items:center;gap:5px;padding:7px 10px;border:1px solid #4e6552;border-radius:3px;background:#111d16dd;color:#b9cfb2;
+  font:700 9px 'Space Grotesk';letter-spacing:.1em;cursor:pointer}
+.exit-fs:hover{border-color:#c0ef77;color:#dff7bd}
+
+/* reward / pause / end overlays usable on small screens */
+@media (max-width:700px){
+  .reward-panel{width:96%;max-height:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+  .card-choices{grid-template-columns:1fr;gap:7px;margin-top:10px}
+  .upgrade-card{display:grid;grid-template-columns:auto 1fr;grid-template-areas:'icon head' 'icon desc';gap:0 10px;padding:10px 12px;min-height:0;align-items:center}
+  .upgrade-card .card-icon{grid-area:icon;margin:0;font-size:24px;align-self:center}
+  .upgrade-card h3{grid-area:head;font-size:12px;margin:0 0 3px}
+  .upgrade-card p{grid-area:desc;font-size:9px;line-height:1.45}
+  .upgrade-card .card-index{position:static;grid-area:head;justify-self:end;align-self:start;font-size:7px}
+  .upgrade-card .card-level{top:8px;right:10px;font-size:7px}
+  .reward-heading{display:block}
+  .reward-heading h2{font-size:16px;margin:2px 0 4px}
+  .reward-heading p{font-size:9px;margin:0 0 6px}
+  .pick-counter{display:flex;gap:6px;align-items:baseline;text-align:left;margin-top:4px}
+  .pick-counter b{font-size:15px}
+  .reward-footer{display:none}
+  .end-stats{gap:18px;margin:14px 0}
+  .end-card h2{font-size:20px}
+  .kb-only.start-description,.start-description:not(.touch-only){display:none}
+  .start-description.touch-only{display:block;font-size:10px;line-height:1.6;margin-bottom:10px}
+}
+@media (max-width:700px) and (orientation:landscape){
+  .card-choices{grid-template-columns:repeat(3,1fr)}
+  .upgrade-card{display:block;padding:8px}
+  .upgrade-card .card-icon{font-size:18px;margin:4px 0 3px}
+  .upgrade-card .card-index{display:none}
+}
+
+/* ---------- portrait field (touch devices use a 900x900 world) ---------- */
+.canvas-wrap.tall .hud{top:2.6%}
+.canvas-wrap.tall #arsenal{max-width:74%}
+.canvas-wrap.tall .arsenal{top:9.5%}
+
+@media (pointer:coarse){
+  /* the HUD is drawn in world units on a narrower field — nudge sizes up */
+  .hud-label{font-size:11px}
+  .hud-label b{font-size:20px}
+  .hud-sub{font-size:10px}
+  .hud-sub b{font-size:11px}
+  .hud-right{font-size:10px}
+  .hud-right b{font-size:17px}
+  .stage-progress{height:5px}
+  .health-bar{height:6px;width:110px}
+  .xp-bar{height:5px;width:90px}
+  .player-id strong{font-size:12px}
+  .player-id>b{font-size:13px}
+  .ars-chip{padding:3px 6px}
+  .ars-chip i{font-size:13px}
+  .ars-chip em{font-size:8px}
+  .boss-meta b{font-size:12px}
+  .boss-track{height:8px}
+  .announcement{font-size:20px;top:22%}
+  /* overlays: room to tap without the thumb covering the next card */
+  .start-card h2{font-size:24px}
+  .primary-btn{padding:16px 20px;font-size:13px;min-width:230px;justify-content:center;gap:12px}
+  .pause-btn{font-size:11px}
+}
+
+@media (pointer:coarse) and (orientation:portrait){
+  .game-frame{margin:0}
+  .canvas-wrap{background:#1a2a22}
+  .layout{padding-top:14px}
+  .section-heading{margin-bottom:10px}
+  .section-heading p{display:none}
+  .heading-tag{display:none}
+  .section-heading h1{font-size:19px;margin:6px 0 0}
+  .topbar{height:56px}
+  .brand small{display:none}
+}
+
+/* ---------- HUD legibility: counter-scale when the field is shrunk ---------- */
+@supports (font-size:calc(1px * var(--field-scale))){
+  body.has-touch .hud, body.has-touch .bottom-hud{font-size:calc(9px / var(--field-scale,1))}
+  @media (max-width:700px){
+    .hud-label{font-size:calc(10px / var(--field-scale,1))}
+    .hud-label b{font-size:calc(17px / var(--field-scale,1))}
+    .hud-sub{font-size:calc(9px / var(--field-scale,1))}
+    .hud-sub b{font-size:calc(10px / var(--field-scale,1))}
+    .hud-right{font-size:calc(9px / var(--field-scale,1))}
+    .hud-right b{font-size:calc(15px / var(--field-scale,1))}
+    .player-id strong{font-size:calc(10px / var(--field-scale,1))}
+    .player-id strong span{font-size:calc(8px / var(--field-scale,1))}
+    .player-id>b{font-size:calc(11px / var(--field-scale,1))}
+    .ars-chip i{font-size:calc(12px / var(--field-scale,1))}
+    .ars-chip em{font-size:calc(7px / var(--field-scale,1))}
+    .boss-meta{font-size:calc(8px / var(--field-scale,1))}
+    .boss-meta b{font-size:calc(10px / var(--field-scale,1))}
+    .boss-meta span:last-child{font-size:calc(7px / var(--field-scale,1))}
+  }
+}
+
+/* no double-tap zoom / long-press selection while playing */
+button,.pause-btn,.primary-btn,.upgrade-card{touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.canvas-wrap{-webkit-user-select:none;user-select:none}
+
+/* mobile: board is width-capped so frame hugs it */
+@media (max-width:700px){
+  .canvas-wrap{margin:0 auto}
+  .game-frame{background:#141f19}
+}
+
+/* boss readout on a tall (portrait) field: full width, clear of the stage HUD */
+.canvas-wrap.tall .boss-bar{top:auto;bottom:8.5%;width:min(86%,520px);transform:translateX(-50%)}
+.canvas-wrap.tall .boss-meta{justify-content:center;flex-wrap:wrap;row-gap:2px}
+.canvas-wrap.tall .boss-meta span:last-child{margin-left:0}
+@media(max-width:700px){
+  .canvas-wrap.tall .boss-bar{width:88%;bottom:7.5%}
+}
+
+/* the immersive toolbar sits over the HUD's top-right corner — keep it clear */
+body.immersive .hud{right:calc(12px + env(safe-area-inset-right,0px))}
+body.immersive .hud-right{padding-right:0;margin-top:26px}
+@media (pointer:coarse){body.immersive .hud-right{margin-top:30px}}

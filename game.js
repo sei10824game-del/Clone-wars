@@ -1,6 +1,23 @@
 (() => {
 'use strict';
 const canvas = document.getElementById('game'), ctx = canvas.getContext('2d', {alpha:false});
+/* On touch devices the arena is shaped like the screen instead of 1100x650,
+   so a phone in portrait gets a tall field and no wasted letterbox space.
+   Total arena area stays close to the desktop one, so balance is unchanged. */
+const MOBILE_FIELD = (typeof window !== 'undefined') && window.matchMedia
+  ? window.matchMedia('(pointer:coarse)').matches
+  : false;
+if(MOBILE_FIELD){
+  const AREA = 1100 * 650 * 0.85;   // slightly tighter field = chunkier actors on a phone
+  const vw = window.innerWidth || 390, vh = window.innerHeight || 844;
+  const ratio = clampNum(vw / vh, 0.50, 2.2);
+  canvas.width  = Math.round(Math.sqrt(AREA * ratio) / 20) * 20;
+  canvas.height = Math.round(Math.sqrt(AREA / ratio) / 20) * 20;
+  canvas.dataset.mobile = '1';
+  document.documentElement.classList.add('touch-device');
+  document.body.classList.add('has-touch');
+}
+function clampNum(n, a, b){ return Math.max(a, Math.min(b, n)); }
 const W = canvas.width, H = canvas.height, $ = id => document.getElementById(id);
 const TAU = Math.PI*2;
 const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
@@ -1079,11 +1096,16 @@ function tick(dt){
     else {
       let dx = (keys.has('d')||keys.has('arrowright')?1:0) - (keys.has('a')||keys.has('arrowleft')?1:0);
       let dy = (keys.has('s')||keys.has('arrowdown')?1:0) - (keys.has('w')||keys.has('arrowup')?1:0);
-      if(touch.active){ dx = touch.dx; dy = touch.dy; }
+      let analog = 1;                        // 0..1 stick tilt (keyboard = full speed)
+      if(touch.active){
+        dx = touch.dx; dy = touch.dy;
+        analog = Math.min(1, Math.hypot(dx,dy));
+      }
       let len = Math.hypot(dx,dy);
       if(len > 0){ dx /= len; dy /= len; f.moveX = dx; f.moveY = dy; }
-      if(f.dashTime > 0){ dx = f.dashX; dy = f.dashY; }
-      let speed = stat(f).speed*(f.dashTime>0?2.7:1);
+      else analog = 0;
+      if(f.dashTime > 0){ dx = f.dashX; dy = f.dashY; analog = 1; }
+      let speed = stat(f).speed*(f.dashTime>0?2.7:1)*analog;
       f.moving = Math.abs(dx)+Math.abs(dy) > .05;
       f.legPhase += dt*(f.moving?10:0);
       f.x = clamp(f.x+dx*speed*dt, 17, W-17);
@@ -1513,7 +1535,9 @@ function buildBackground(){
   g.fillStyle = 'rgba(200,232,180,.18)';
   g.font = 'bold 10px monospace';
   g.fillText('SECTOR 01 / SURVIVAL ZONE', 58, H-54);
-  g.fillText('N 35°  /  E 139°', W-172, 66);
+  // The coordinate tag lives in the top-right corner on wide fields, but a
+  // portrait field is narrow — it would sit under the HUD/BOSS readout there.
+  if(W / H > 1.1) g.fillText('N 35°  /  E 139°', W-172, 66);
 
   // vignette baked into the floor
   const vig = g.createRadialGradient(W/2,H/2,Math.min(W,H)*.46,W/2,H/2,Math.max(W,H)*.74);
@@ -2405,6 +2429,7 @@ function togglePause(){
     $('pauseOverlay').classList.add('hidden');
     $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
   }
+  if(typeof syncFsPause === 'function') syncFsPause();
 }
 
 $('touchDash').addEventListener('pointerdown', e=>{ e.preventDefault(); dash(); });
@@ -2421,23 +2446,155 @@ window.addEventListener('keydown', e=>{
 });
 window.addEventListener('keyup', e=>keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', ()=>{ keys.clear(); if(game.state === 'playing') togglePause(); });
+/* -------- touch: floating virtual joystick --------
+   The stick appears wherever the thumb lands and the knob follows it.
+   A quick flick without holding still counts as a dash. */
+const stickEl = $('touchStick'), knobEl = $('stickKnob'), wrapEl = $('canvasWrap');
+const STICK_R = 46;
+function placeStick(cx, cy){
+  const box = wrapEl.getBoundingClientRect();
+  const pad = 70;                                    // keep the ring on screen
+  const x = clamp(cx - box.left, pad, Math.max(pad, box.width - pad));
+  const y = clamp(cy - box.top,  pad, Math.max(pad, box.height - pad));
+  stickEl.style.left = x + 'px';
+  stickEl.style.top = y + 'px';
+  stickEl.style.transform = 'translate(-50%,-50%)';
+}
 canvas.addEventListener('pointerdown', e=>{
   if(e.pointerType === 'mouse') return;
   touch.active = true;
   touch.x = e.clientX; touch.y = e.clientY;
   touch.dx = touch.dy = 0;
+  touch.id = e.pointerId;
+  placeStick(e.clientX, e.clientY);
+  knobEl.style.transform = 'translate(0,0)';
+  stickEl.classList.add('on');
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', e=>{
-  if(!touch.active) return;
-  const dx = e.clientX-touch.x, dy = e.clientY-touch.y;
+  if(!touch.active || e.pointerId !== touch.id) return;
+  let dx = e.clientX-touch.x, dy = e.clientY-touch.y;
   const d = Math.hypot(dx,dy);
-  touch.dx = d>8 ? dx/d : 0;
-  touch.dy = d>8 ? dy/d : 0;
+  if(d > STICK_R){ dx *= STICK_R/d; dy *= STICK_R/d; }
+  knobEl.style.transform = `translate(${dx}px,${dy}px)`;
+  touch.dx = d>7 ? dx/Math.max(d,STICK_R) : 0;
+  touch.dy = d>7 ? dy/Math.max(d,STICK_R) : 0;
+  const len = Math.hypot(touch.dx,touch.dy);
+  if(len > 1){ touch.dx /= len; touch.dy /= len; }
 });
-function releaseTouch(){ touch.active = false; touch.dx = touch.dy = 0; }
+function releaseTouch(e){
+  if(e && touch.id !== undefined && e.pointerId !== undefined && e.pointerId !== touch.id) return;
+  touch.active = false; touch.dx = touch.dy = 0; touch.id = undefined;
+  stickEl.classList.remove('on');
+  knobEl.style.transform = 'translate(0,0)';
+}
 canvas.addEventListener('pointerup', releaseTouch);
 canvas.addEventListener('pointercancel', releaseTouch);
+canvas.addEventListener('contextmenu', e=>{ if(e.pointerType !== 'mouse') e.preventDefault(); });
+document.addEventListener('gesturestart', e=>e.preventDefault());
+
+/* -------- fullscreen / immersive mode -------- */
+const fsBtn = $('fsBtn'), exitFsBtn = $('exitFs');
+function immersive(){ return document.body.classList.contains('immersive'); }
+function tryFullscreen(on){
+  try{
+    const el = document.documentElement;
+    if(on && el.requestFullscreen && !document.fullscreenElement){
+      const p = el.requestFullscreen(); if(p && p.catch) p.catch(()=>{});
+    }
+    if(!on && document.fullscreenElement && document.exitFullscreen){
+      const p = document.exitFullscreen(); if(p && p.catch) p.catch(()=>{});
+    }
+  }catch(_){}
+  // Orientation lock is unsupported on iOS Safari — never let it break play.
+  try{
+    if(!screen || !screen.orientation) return;
+    if(on && screen.orientation.lock){
+      const p = screen.orientation.lock('landscape'); if(p && p.catch) p.catch(()=>{});
+    }
+    if(!on && screen.orientation.unlock) screen.orientation.unlock();
+  }catch(_){}
+}
+function enterImmersive(){
+  document.body.classList.add('immersive');
+  tryFullscreen(true);
+  resizeCanvas();
+  requestAnimationFrame(resizeCanvas);      // after the layout settles
+  setTimeout(resizeCanvas, 240);
+}
+function exitImmersive(){
+  document.body.classList.remove('immersive');
+  tryFullscreen(false);
+  if(game.state === 'paused') togglePause();
+  resizeCanvas();
+  requestAnimationFrame(resizeCanvas);
+}
+if(fsBtn) fsBtn.onclick = ()=>{ immersive() ? exitImmersive() : enterImmersive(); };
+if(exitFsBtn) exitFsBtn.onclick = exitImmersive;
+const fsPauseBtn = $('fsPause');
+if(fsPauseBtn) fsPauseBtn.onclick = togglePause;
+function syncFsPause(){
+  if(fsPauseBtn) fsPauseBtn.textContent = game.state === 'paused' ? '▶ 再開' : 'Ⅱ 停止';
+}
+document.addEventListener('fullscreenchange', ()=>{
+  if(!document.fullscreenElement && immersive()) document.body.classList.remove('immersive'), resizeCanvas();
+});
+
+/* -------- layout: keep the whole field visible at any screen shape -------- */
+function resizeCanvas(){
+  const wrap = $('canvasWrap');
+  if(!wrap) return;
+  wrap.classList.toggle('tall', H > W);
+  if(immersive()){
+    // Fill the screen, letterboxing the field so nothing is cropped or stretched.
+    wrap.style.aspectRatio = '';
+    const bw = wrap.clientWidth || window.innerWidth;
+    const bh = wrap.clientHeight || window.innerHeight;
+    if(!bw || !bh) return;
+    const k = Math.min(bw/W, bh/H);
+    canvas.style.width = Math.round(W*k)+'px';
+    canvas.style.height = Math.round(H*k)+'px';
+    canvas.style.position = 'absolute';
+    canvas.style.left = '50%';
+    canvas.style.top = '50%';
+    canvas.style.transform = 'translate(-50%,-50%)';
+  } else {
+    canvas.style.width = '';
+    canvas.style.height = '';
+    canvas.style.position = '';
+    canvas.style.left = '';
+    canvas.style.top = '';
+    canvas.style.transform = '';
+    if(canvas.dataset.mobile){
+      wrap.style.aspectRatio = (W/H).toFixed(4);
+      // Keep the whole field on screen without scrolling: cap by the room we
+      // have under the header, but never let the board get too small to read.
+      const room = Math.max(300, (window.innerHeight || 700) - (immersive() ? 0 : 190));
+      const maxW = Math.max(300, Math.round(room * W / H));
+      wrap.style.maxWidth = maxW + 'px';
+      wrap.style.margin = '0 auto';
+    } else {
+      wrap.style.maxWidth = '';
+      wrap.style.margin = '';
+    }
+  }
+  // HUD lives in CSS pixels but the field may be shrunk on a phone:
+  // expose the ratio so the overlay can compensate and stay readable.
+  const shown = canvas.getBoundingClientRect().width || W;
+  const k = Math.max(.45, Math.min(1.6, shown / W));
+  document.documentElement.style.setProperty('--field-scale', k.toFixed(3));
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', ()=>setTimeout(()=>{ resizeCanvas(); releaseTouch(); },180));
+resizeCanvas();
+
+/* pause automatically when the page is hidden (phone lock / app switch) */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden && game.state === 'playing'){
+    releaseTouch();
+    togglePause();
+  }
+});
 
 newGame();
 for(let i=0;i<12;i++) spawnEnemy();
