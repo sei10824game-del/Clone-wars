@@ -25,9 +25,9 @@
 
     <main class="layout">
       <section class="game-column">
-        <div class="section-heading"><div><span class="eyebrow">SURVIVAL PROTOCOL <span> / </span> 01</span><h1>クローンサバイバーズ<span class="heading-period">.</span></h1><p>生き残れ。もうひとりの自分と、ともに。</p></div><div class="heading-tag"><span>◈</span> ENDLESS ARENA</div></div>
+        <div class="section-heading"><div><span class="eyebrow">SURVIVAL PROTOCOL <span> / </span> 01</span><h1>クローンサバイバーズ<span class="heading-period">.</span></h1><p>生き残れ。もうひとりの自分と、ともに。</p></div><div class="heading-tag"><span>◈</span> OPEN WORLD · 4600 × 4600</div></div>
         <div class="game-frame">
-          <div class="game-topline"><div><span class="signal"></span> LIVE FIELD <span class="muted">//</span> <span id="fieldStage">STAGE 01</span></div><div class="field-coords">SECTOR <span>00 : 01</span> <span class="muted">✳</span></div></div>
+          <div class="game-topline"><div><span class="signal"></span> LIVE FIELD <span class="muted">//</span> <span id="fieldStage">STAGE 01</span></div><div class="field-coords" id="fieldCoords">SAFE ZONE <span>0%</span> <span class="muted">✳</span></div></div>
           <div class="canvas-wrap" id="canvasWrap">
             <canvas id="game" width="1100" height="650" aria-label="ゲームフィールド"></canvas>
             <div class="canvas-vignette"></div>
@@ -40,7 +40,7 @@
             </div>
             <div class="arsenal" id="arsenal"></div>
             <div class="bottom-hud"><div class="player-id"><div class="player-avatar">✦</div><div><strong>YOU <span> / プレイヤー</span></strong><div class="health-bar"><i id="healthFill"></i></div></div><b id="healthText">100 <small>/ 100</small></b></div><div class="xp-block"><span>LV. <b id="level">01</b></span><div class="xp-bar"><i id="xpFill"></i></div><span id="xpText">0 / 100 XP</span></div></div>
-            <div class="overlay" id="startOverlay"><div class="start-card"><div class="start-kicker"><span class="live-dot"></span> SYSTEM ONLINE <span class="slash">//</span> READY?</div><div class="start-symbol"><span>✦</span><i></i></div><p class="start-overline">THE ARENA IS WAITING</p><h2>仲間とともに、<br><em>生き残れ。</em></h2><p class="start-description">ショットガン、ゾンビ召喚、チェインライトニング……<br>武器を重ねて覚醒させ、敵の群れを生き延びろ。</p>
+            <div class="overlay" id="startOverlay"><div class="start-card"><div class="start-kicker"><span class="live-dot"></span> SYSTEM ONLINE <span class="slash">//</span> READY?</div><div class="start-symbol"><span>✦</span><i></i></div><p class="start-overline">THE ARENA IS WAITING</p><h2>仲間とともに、<br><em>生き残れ。</em></h2><p class="start-description">広大な戦場を探索し、建物に眠る戦利品を漁れ。<br>遠くへ行くほど、良いものと強い敵が待っている。</p>
               <p class="start-description touch-only">画面をドラッグして移動。ϟ でダッシュ。<br>武器は自動で攻撃する。</p><button id="startBtn" class="primary-btn">ゲームを開始 <span>↗</span></button><div class="start-controls"><span class="touch-only">⛶ 全画面ボタンで広く遊べます</span><span class="kb-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動</span><span class="kb-only"><kbd>SPACE</kbd> ダッシュ</span><span class="touch-only">◐ ドラッグで移動</span><span class="touch-only">ϟ ボタンでダッシュ</span><span>✦ 攻撃は自動</span></div></div></div>
             <div class="overlay hidden" id="rewardOverlay"><div class="reward-panel"><div class="reward-heading"><div><div class="reward-kicker">✦ LEVEL UP <span>//</span> UPGRADE PROTOCOL</div><h2>力を選択せよ<span>.</span></h2><p>武器カードを選んで攻撃を獲得。同じカードを重ねると性能が上がり、3回で覚醒する。</p></div><div class="pick-counter"><span>SELECTION</span><b id="pickCount">01 <small>/ 03</small></b></div></div><div id="cardChoices" class="card-choices"></div><div class="reward-footer"><span>✳ 同じカードを 3 回獲得すると覚醒</span><span>RANGED / SUMMON / TRAP の10種 →</span></div></div></div>
             <div class="overlay hidden" id="endOverlay"><div class="end-card"><div class="end-mark">×</div><div class="start-overline">SIGNAL LOST // GAME OVER</div><h2>ここで、終わり。</h2><p>あなたの記録は、次の生存者に引き継がれる。</p><div class="end-stats"><div><span>到達ステージ</span><b id="endStage">01</b></div><div><span>撃破数</span><b id="endKills">00</b></div><div><span>生存時間</span><b id="endTime">00:00</b></div></div><button id="restartBtn" class="primary-btn">もう一度挑戦 <span>↗</span></button></div></div>
@@ -57,9 +57,9 @@
       </section>
       <aside class="sidebar">
         <div class="side-title"><span>FIELD GUIDE</span><span>01 — 03</span></div>
-        <div class="side-intro"><div class="side-heading"><span class="number">01</span><span class="mini-icon">✳</span></div><h3>武器を集め、生き残る。</h3><p>押し寄せる敵を倒し、ステージ終了まで生き残ろう。攻撃は自動、移動に集中。</p><div class="legend"><span><i class="legend-you"></i> YOU</span><span><i class="legend-enemy"></i> ENEMY</span><span><i class="legend-clone"></i> ALLY CLONE</span></div></div>
-        <div class="side-intro"><div class="side-heading"><span class="number">02</span><span class="mini-icon orange">◉</span></div><h3>自分自身が、仲間になる。</h3><p>ステージクリアごとに味方のクローンが出現。5ステージごとにはボスが待ち受ける。</p><div class="clone-note"><span>↗</span><div><b>CLONES ARE ALLIES</b><small>クローンも、死んだら終わり。</small></div></div></div>
-        <div class="side-intro last"><div class="side-heading"><span class="number">03</span><span class="mini-icon purple">✦</span></div><h3>選択が、力になる。</h3><p>射撃・召喚・トラップの10種類の武装。同じカードを重ねると性能が上がる。</p><div class="upgrade-mini"><span>Ⅰ</span><span>Ⅱ</span><span class="awaken">✦</span><small>LEVEL UP → AWAKEN</small></div></div>
+        <div class="side-intro"><div class="side-heading"><span class="number">01</span><span class="mini-icon">✳</span></div><h3>広がる戦場を、探索する。</h3><p>マップは画面の外まで続く。プレイヤーを中心にカメラが追従し、右下のミニマップで全体像がわかる。</p><div class="legend"><span><i class="legend-you"></i> YOU</span><span><i class="legend-enemy"></i> ENEMY</span><span><i class="legend-clone"></i> ALLY CLONE</span></div></div>
+        <div class="side-intro"><div class="side-heading"><span class="number">02</span><span class="mini-icon orange">◉</span></div><h3>建物には、戦利品と敵。</h3><p>廃屋から深奥の間まで、遠い建物ほど良い装備が眠る。中には敵もいる。5ステージごとにボスも出現。</p><div class="clone-note"><span>↗</span><div><b>CLONES ARE ALLIES</b><small>クローンも、死んだら終わり。</small></div></div></div>
+        <div class="side-intro last"><div class="side-heading"><span class="number">03</span><span class="mini-icon purple">✦</span></div><h3>それぞれが、別々に育つ。</h3><p>レベルと経験値は個体ごと。クローンは自分の撃破と拾い物だけで成長する。カード選択後は5秒の準備時間。</p><div class="upgrade-mini"><span>Ⅰ</span><span>Ⅱ</span><span class="awaken">✦</span><small>LEVEL UP → AWAKEN</small></div></div>
         <div class="side-footer"><span>GOOD LUCK, SURVIVOR.</span><span>↗</span></div>
       </aside>
     </main>

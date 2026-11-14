@@ -266,9 +266,9 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
 
     <main class="layout">
       <section class="game-column">
-        <div class="section-heading"><div><span class="eyebrow">SURVIVAL PROTOCOL <span> / </span> 01</span><h1>クローンサバイバーズ<span class="heading-period">.</span></h1><p>生き残れ。もうひとりの自分と、ともに。</p></div><div class="heading-tag"><span>◈</span> ENDLESS ARENA</div></div>
+        <div class="section-heading"><div><span class="eyebrow">SURVIVAL PROTOCOL <span> / </span> 01</span><h1>クローンサバイバーズ<span class="heading-period">.</span></h1><p>生き残れ。もうひとりの自分と、ともに。</p></div><div class="heading-tag"><span>◈</span> OPEN WORLD · 4600 × 4600</div></div>
         <div class="game-frame">
-          <div class="game-topline"><div><span class="signal"></span> LIVE FIELD <span class="muted">//</span> <span id="fieldStage">STAGE 01</span></div><div class="field-coords">SECTOR <span>00 : 01</span> <span class="muted">✳</span></div></div>
+          <div class="game-topline"><div><span class="signal"></span> LIVE FIELD <span class="muted">//</span> <span id="fieldStage">STAGE 01</span></div><div class="field-coords" id="fieldCoords">SAFE ZONE <span>0%</span> <span class="muted">✳</span></div></div>
           <div class="canvas-wrap" id="canvasWrap">
             <canvas id="game" width="1100" height="650" aria-label="ゲームフィールド"></canvas>
             <div class="canvas-vignette"></div>
@@ -281,7 +281,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
             </div>
             <div class="arsenal" id="arsenal"></div>
             <div class="bottom-hud"><div class="player-id"><div class="player-avatar">✦</div><div><strong>YOU <span> / プレイヤー</span></strong><div class="health-bar"><i id="healthFill"></i></div></div><b id="healthText">100 <small>/ 100</small></b></div><div class="xp-block"><span>LV. <b id="level">01</b></span><div class="xp-bar"><i id="xpFill"></i></div><span id="xpText">0 / 100 XP</span></div></div>
-            <div class="overlay" id="startOverlay"><div class="start-card"><div class="start-kicker"><span class="live-dot"></span> SYSTEM ONLINE <span class="slash">//</span> READY?</div><div class="start-symbol"><span>✦</span><i></i></div><p class="start-overline">THE ARENA IS WAITING</p><h2>仲間とともに、<br><em>生き残れ。</em></h2><p class="start-description">ショットガン、ゾンビ召喚、チェインライトニング……<br>武器を重ねて覚醒させ、敵の群れを生き延びろ。</p>
+            <div class="overlay" id="startOverlay"><div class="start-card"><div class="start-kicker"><span class="live-dot"></span> SYSTEM ONLINE <span class="slash">//</span> READY?</div><div class="start-symbol"><span>✦</span><i></i></div><p class="start-overline">THE ARENA IS WAITING</p><h2>仲間とともに、<br><em>生き残れ。</em></h2><p class="start-description">広大な戦場を探索し、建物に眠る戦利品を漁れ。<br>遠くへ行くほど、良いものと強い敵が待っている。</p>
               <p class="start-description touch-only">画面をドラッグして移動。ϟ でダッシュ。<br>武器は自動で攻撃する。</p><button id="startBtn" class="primary-btn">ゲームを開始 <span>↗</span></button><div class="start-controls"><span class="touch-only">⛶ 全画面ボタンで広く遊べます</span><span class="kb-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動</span><span class="kb-only"><kbd>SPACE</kbd> ダッシュ</span><span class="touch-only">◐ ドラッグで移動</span><span class="touch-only">ϟ ボタンでダッシュ</span><span>✦ 攻撃は自動</span></div></div></div>
             <div class="overlay hidden" id="rewardOverlay"><div class="reward-panel"><div class="reward-heading"><div><div class="reward-kicker">✦ LEVEL UP <span>//</span> UPGRADE PROTOCOL</div><h2>力を選択せよ<span>.</span></h2><p>武器カードを選んで攻撃を獲得。同じカードを重ねると性能が上がり、3回で覚醒する。</p></div><div class="pick-counter"><span>SELECTION</span><b id="pickCount">01 <small>/ 03</small></b></div></div><div id="cardChoices" class="card-choices"></div><div class="reward-footer"><span>✳ 同じカードを 3 回獲得すると覚醒</span><span>RANGED / SUMMON / TRAP の10種 →</span></div></div></div>
             <div class="overlay hidden" id="endOverlay"><div class="end-card"><div class="end-mark">×</div><div class="start-overline">SIGNAL LOST // GAME OVER</div><h2>ここで、終わり。</h2><p>あなたの記録は、次の生存者に引き継がれる。</p><div class="end-stats"><div><span>到達ステージ</span><b id="endStage">01</b></div><div><span>撃破数</span><b id="endKills">00</b></div><div><span>生存時間</span><b id="endTime">00:00</b></div></div><button id="restartBtn" class="primary-btn">もう一度挑戦 <span>↗</span></button></div></div>
@@ -298,9 +298,9 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
       </section>
       <aside class="sidebar">
         <div class="side-title"><span>FIELD GUIDE</span><span>01 — 03</span></div>
-        <div class="side-intro"><div class="side-heading"><span class="number">01</span><span class="mini-icon">✳</span></div><h3>武器を集め、生き残る。</h3><p>押し寄せる敵を倒し、ステージ終了まで生き残ろう。攻撃は自動、移動に集中。</p><div class="legend"><span><i class="legend-you"></i> YOU</span><span><i class="legend-enemy"></i> ENEMY</span><span><i class="legend-clone"></i> ALLY CLONE</span></div></div>
-        <div class="side-intro"><div class="side-heading"><span class="number">02</span><span class="mini-icon orange">◉</span></div><h3>自分自身が、仲間になる。</h3><p>ステージクリアごとに味方のクローンが出現。5ステージごとにはボスが待ち受ける。</p><div class="clone-note"><span>↗</span><div><b>CLONES ARE ALLIES</b><small>クローンも、死んだら終わり。</small></div></div></div>
-        <div class="side-intro last"><div class="side-heading"><span class="number">03</span><span class="mini-icon purple">✦</span></div><h3>選択が、力になる。</h3><p>射撃・召喚・トラップの10種類の武装。同じカードを重ねると性能が上がる。</p><div class="upgrade-mini"><span>Ⅰ</span><span>Ⅱ</span><span class="awaken">✦</span><small>LEVEL UP → AWAKEN</small></div></div>
+        <div class="side-intro"><div class="side-heading"><span class="number">01</span><span class="mini-icon">✳</span></div><h3>広がる戦場を、探索する。</h3><p>マップは画面の外まで続く。プレイヤーを中心にカメラが追従し、右下のミニマップで全体像がわかる。</p><div class="legend"><span><i class="legend-you"></i> YOU</span><span><i class="legend-enemy"></i> ENEMY</span><span><i class="legend-clone"></i> ALLY CLONE</span></div></div>
+        <div class="side-intro"><div class="side-heading"><span class="number">02</span><span class="mini-icon orange">◉</span></div><h3>建物には、戦利品と敵。</h3><p>廃屋から深奥の間まで、遠い建物ほど良い装備が眠る。中には敵もいる。5ステージごとにボスも出現。</p><div class="clone-note"><span>↗</span><div><b>CLONES ARE ALLIES</b><small>クローンも、死んだら終わり。</small></div></div></div>
+        <div class="side-intro last"><div class="side-heading"><span class="number">03</span><span class="mini-icon purple">✦</span></div><h3>それぞれが、別々に育つ。</h3><p>レベルと経験値は個体ごと。クローンは自分の撃破と拾い物だけで成長する。カード選択後は5秒の準備時間。</p><div class="upgrade-mini"><span>Ⅰ</span><span>Ⅱ</span><span class="awaken">✦</span><small>LEVEL UP → AWAKEN</small></div></div>
         <div class="side-footer"><span>GOOD LUCK, SURVIVOR.</span><span>↗</span></div>
       </aside>
     </main>
@@ -329,6 +329,16 @@ if(MOBILE_FIELD){
 function clampNum(n, a, b){ return Math.max(a, Math.min(b, n)); }
 const W = canvas.width, H = canvas.height, $ = id => document.getElementById(id);
 const TAU = Math.PI*2;
+
+/* The arena used to be exactly one screen. It is now a large scrolling world
+   with the camera locked on the player, so gameplay bounds are WORLD_* while
+   W/H remain the viewport (and the authoring size for the baked backdrop). */
+const WORLD = { w: 4600, h: 4600 };
+const WORLD_W = WORLD.w, WORLD_H = WORLD.h;
+/* persistent camera + world state (survives newGame so the map is stable) */
+const cam = { x: 0, y: 0, shakeX: 0, shakeY: 0 };
+let WORLD_SEED = 20260314;
+const worldEnt = { obstacles: [], buildings: [] };
 const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
 const rand = (a,b) => a + Math.random()*(b-a);
 const dist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
@@ -468,16 +478,19 @@ function fighter(x,y,clone=false){
     orbitPhase:rand(0,TAU), blades:[],
     shoot:rand(.05,.4), dashCd:0, dashTime:0, invuln:0, hit:0, muzzle:0, cast:0,
     angle:clone?rand(0,TAU):-Math.PI/2, alive:true, decision:0, action:0, state:null, reward:0,
-    seed:rand(0,100), legPhase:0, moveX:0, moveY:0, moving:false, bob:rand(0,7)
+    seed:rand(0,100), legPhase:0, moveX:0, moveY:0, moving:false, bob:rand(0,7),
+    frenzy:0
   };
 }
 function newGame(){
+  cam.x = WORLD_W/2; cam.y = WORLD_H/2;
   game = {
     state:'ready', stage:1, time:30, elapsed:0, kills:0,
-    player:fighter(W/2,H/2), clones:[], enemies:[], bullets:[], minions:[],
+    player:fighter(WORLD_W/2, WORLD_H/2), clones:[], enemies:[], bullets:[], minions:[],
     drones:[], wisps:[], hazards:[],
     particles:[], texts:[], beams:[], rings:[], sparks:[], drops:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:'',
+    cooldown:0, cooldown0:5, roundReady:false, roundAnchor:{x:0,y:0}, pendingStage:0,
     boss:null, bossFlash:0, eliteCount:0, frenzy:0, afterglow:0, bossTimer:-1
   };
   updateHUD();
@@ -568,8 +581,15 @@ function updateHUD(){
   const p = game.player;
   $('stageNumber').textContent = String(game.stage).padStart(2,'0');
   $('fieldStage').textContent = 'STAGE '+String(game.stage).padStart(2,'0');
-  $('timer').textContent = '00:'+String(Math.ceil(Math.max(0,game.time))).padStart(2,'0');
-  $('stageFill').style.width = (100*(1-game.time/30))+'%';
+  if(game.state === 'cooldown'){
+    $('timer').textContent = 'COOLDOWN ' + game.cooldown.toFixed(1) + 's';
+    $('stageFill').style.width = (100*(1-game.cooldown/(game.cooldown0||5)))+'%';
+    $('stageFill').style.background = '#9fe6ff';
+  } else {
+    $('timer').textContent = '00:'+String(Math.ceil(Math.max(0,game.time))).padStart(2,'0');
+    $('stageFill').style.width = (100*(1-game.time/30))+'%';
+    $('stageFill').style.background = '';
+  }
   $('cloneCount').textContent = String(game.clones.filter(c=>c.alive).length).padStart(2,'0');
   $('killCount').textContent = String(game.kills).padStart(2,'0');
   $('healthFill').style.width = (100*Math.max(0,p.hp)/p.maxHp)+'%';
@@ -577,6 +597,17 @@ function updateHUD(){
   $('level').textContent = String(p.level).padStart(2,'0');
   $('xpFill').style.width = (100*Math.min(1,p.xp/threshold(p)))+'%';
   $('xpText').textContent = Math.floor(p.xp)+' / '+threshold(p)+' XP';
+  // show which depth band we're standing in, plus the squad's own levels
+  const fd = $('fieldCoords');
+  if(fd){
+    const band = depthLabel(worldDepth(p.x, p.y));
+    fd.innerHTML = band.label + ' <span>' + Math.round(worldDepth(p.x,p.y)*100) + '%</span> <span class="muted">✳</span>';
+    fd.style.color = band.color;
+  }
+  const squad = game.clones.filter(c=>c.alive);
+  if(squad.length){
+    $('cloneCount').title = squad.map(c=>'Lv.'+c.level).join(' / ');
+  }
   updateBossBar();
   updateArsenal();
 }
@@ -684,10 +715,14 @@ function showCards(){
         game.pendingLevels--;
         game.pick = 0;
         if(game.pendingLevels > 0) showCards();
-        else {
+        else if(game.pendingStage){
+          // end-of-stage picks: the 5 second breather runs before the next round
+          beginCooldown();
+        } else {
+          // a mid-round level-up: just resume the round we were already in
           $('rewardOverlay').classList.add('hidden');
           game.state = 'playing';
-          notice('STAGE '+String(game.stage).padStart(2,'0'),'新たなクローンが出現');
+          $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
         }
       }
     });
@@ -722,27 +757,290 @@ function stageClear(){
   game.wisps = [];
   game.drops = [];
   game.boss = null;
-  const xp = 100 + (game.stage-1)*25;
-  const fighters = [game.player, ...game.clones.filter(c=>c.alive)];
-  for(const f of fighters) grantXp(f, xp);
+  /* XP is per-individual now: clearing a stage no longer hands a lump sum to
+     the whole squad. Each fighter only grows from kills it actually makes
+     and from pickups it walks over. The stage bonus is deliberately tiny and
+     scaled by how far out in the world the squad has pushed. */
+  const depth = worldDepth(game.player.x, game.player.y);
+  const bonus = Math.round(8 + game.stage*2 + depth*26);
+  grantXp(game.player, bonus);   // only the surviving player banks the clear
   const angle = rand(0,TAU);
-  const clone = fighter(clamp(W/2+Math.cos(angle)*320,60,W-60), clamp(H/2+Math.sin(angle)*240,60,H-60), true);
+  const clone = fighter(clamp(game.player.x+Math.cos(angle)*300,60,WORLD_W-60), clamp(game.player.y+Math.sin(angle)*300,60,WORLD_H-60), true);
   game.clones.push(clone);
   for(let i=0;i<18;i++) particles(clone.x, clone.y, '#ffca86', 2);
   game.rings.push({x:clone.x,y:clone.y,r:10,maxR:120,life:.7,max:.7,color:'#ffcf8a',width:3});
-  game.stage++;
-  game.time = 30;
-  game.spawn = 1;
+  /* The stage number advances when the next round actually starts (after the
+     cooldown) so the HUD doesn't show a stage that hasn't begun. */
+  game.pendingStage = game.stage + 1;
+  game.roundAnchor = {x:game.player.x, y:game.player.y};
   game.bossStageProlonged = false;
-  // Boss every 5th stage: the arena locks down and a named boss enters.
-  game.bossTimer = (game.stage % 5 === 0) ? 0.8 : -1;
+  game.spawn = 1;
+  game.spawnPaused = true;
   updateHUD();
-  if(game.pendingLevels > 0){ game.pick = 0; showCards(); }
-  else if(game.bossTimer > 0) notice('WARNING','ボスが接近している…');
-  else notice('STAGE '+String(game.stage).padStart(2,'0'),'新たなクローンが出現');
   saveBrain();
+  if(game.pendingLevels > 0){ game.pick = 0; showCards(); }
+  else beginCooldown();
 }
 
+
+
+/* ================================================================== *
+ *  WORLD  — obstacles, buildings, distance-scaled loot              *
+ * ================================================================== */
+
+/* deterministic rng so a run's map is stable across restarts */
+function makeRng(seed){
+  let s = seed>>>0;
+  return () => ((s = (s*1664525+1013904223)>>>0) / 4294967296);
+}
+
+/* distance from the arena centre, 0 (start plaza) .. 1 (the far corner) */
+function worldDepth(x,y){
+  const dx = x - WORLD_W/2;
+  const dy = y - WORLD_H/2;
+  const maxR = Math.min(WORLD_W, WORLD_H) / 2;   // edge of the map along an axis
+  return clamp(Math.hypot(dx,dy) / maxR, 0, 1);
+}
+const DEPTH_NAMES = [
+  {t:0.16, label:'SAFE ZONE',  color:'#b8e08a'},
+  {t:0.36, label:'OUTSKIRTS',  color:'#a9d8a0'},
+  {t:0.58, label:'RUINS',      color:'#f0cf8a'},
+  {t:0.80, label:'DEEP RUINS', color:'#f5a96c'},
+  {t:1.01, label:'THE ABYSS',  color:'#ff8f8f'}
+];
+function depthBand(d){
+  for(let i=0;i<DEPTH_NAMES.length;i++) if(d < DEPTH_NAMES[i].t) return i;
+  return DEPTH_NAMES.length-1;
+}
+function depthLabel(d){ return DEPTH_NAMES[depthBand(d)]; }
+
+const rectsOverlap = (a,b,pad=0) =>
+  a.x - pad < b.x + b.w && a.x + a.w + pad > b.x &&
+  a.y - pad < b.y + b.h && a.y + a.h + pad > b.y;
+
+function pointInBuilding(x,y,b){
+  return x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h;
+}
+
+/* ------------- obstacles: solid props that block movement ------------- */
+function buildWorld(){
+  const rng = makeRng(WORLD_SEED);
+  worldEnt.obstacles.length = 0;
+  worldEnt.buildings.length = 0;
+
+  const reserved = [];
+  const cx = WORLD_W/2, cy = WORLD_H/2;
+  reserved.push({x:cx-360, y:cy-360, w:720, h:720});      // safe start plaza
+
+  // ---- buildings, richer the further out they are ----
+  const BUILDING_ROOMS = [
+    {w:520, h:400, loot:3, guards:2},   // 0 outskirt shack
+    {w:640, h:470, loot:4, guards:3},
+    {w:760, h:540, loot:5, guards:4},
+    {w:880, h:620, loot:6, guards:5}    // abyss vault
+  ];
+  /* Place one building per distance band so the risk/reward ramp is real:
+     a shack near the start, a vault at the edge of the map. Each band gets a
+     couple of candidates scattered around its ring. */
+  const BANDS = [
+    {rad:[480, 760],   rooms:0},
+    {rad:[980, 1350],  rooms:1},
+    {rad:[1550, 1900], rooms:2},
+    {rad:[2050, 2350], rooms:3}
+  ];
+  for(let band=0; band<BANDS.length; band++){
+    const def = BANDS[band];
+    let made = 0, tries = 0;
+    while(made < 3 && tries < 220){
+      tries++;
+      const room = BUILDING_ROOMS[def.rooms];
+      const w = room.w + Math.floor(rng()*3)*40;
+      const h = room.h + Math.floor(rng()*3)*40;
+      const ang = rng()*TAU;
+      const rad = def.rad[0] + rng()*(def.rad[1]-def.rad[0]);
+      const bx = clamp(cx + Math.cos(ang)*rad - w/2, 140, WORLD_W - w - 140);
+      const by = clamp(cy + Math.sin(ang)*rad - h/2, 140, WORLD_H - h - 140);
+      const box = {x:bx, y:by, w, h};
+      if(reserved.some(r => rectsOverlap(box, r, 240))) continue;
+      const depth = worldDepth(bx + w/2, by + h/2);
+      const tier = clamp(band, 0, 4);
+      worldEnt.buildings.push({
+        x:bx, y:by, w, h, depth, tier,
+        loot: room.loot + tier,
+        guards: room.guards + tier,
+        entered:false, cleared:false, discovered:false,
+        seed: Math.floor(rng()*100000),
+        name: ['廃屋','保管庫','研究所','地下シェルター','深奥の間'][tier]
+      });
+      reserved.push(box);
+      made++;
+    }
+  }
+
+  // ---- solid obstacles: rocks, walls, crates (block movement) ----
+  const shapes = ['rock','wall','crate'];
+  let placed = 0, tries = 0;
+  while(placed < 340 && tries < 14000){
+    tries++;
+    let x = rng()*WORLD_W, y = rng()*WORLD_H;
+    x = clamp(x, 150, WORLD_W-150); y = clamp(y, 150, WORLD_H-150);
+    const kind = shapes[Math.floor(rng()*shapes.length)];
+    let w,h;
+    if(kind === 'rock'){ w = 46+rng()*54; h = w*(.7+rng()*.5); }
+    else if(kind === 'wall'){ const horiz = rng()<.5; w = horiz ? 150+rng()*170 : 34+rng()*16; h = horiz ? 34+rng()*16 : 150+rng()*170; }
+    else { w = 52+rng()*26; h = w; }
+    const box = {x:x-w/2, y:y-h/2, w, h};
+    if(box.x < 90 || box.y < 90 || box.x+box.w > WORLD_W-90 || box.y+box.h > WORLD_H-90) continue;
+    if(reserved.some(r => rectsOverlap(box, r, 150))) continue;
+    if(worldEnt.obstacles.some(o => rectsOverlap(box, o, 120))) continue;
+    worldEnt.obstacles.push({
+      x:box.x, y:box.y, w, h, kind,
+      cx:box.x+box.w/2, cy:box.y+box.h/2,
+      seed: Math.floor(rng()*100000),
+      solid: true, blocksShots: kind !== 'crate' || rng() < .6
+    });
+    placed++;
+  }
+}
+
+function boxCircleOverlap(box, ent, r){
+  const nx = clamp(ent.x, box.x, box.x+box.w);
+  const ny = clamp(ent.y, box.y, box.y+box.h);
+  const dx = ent.x-nx, dy = ent.y-ny;
+  return dx*dx + dy*dy < r*r;
+}
+function pushCircleOutOfBox(ent, box, r){
+  const nx = clamp(ent.x, box.x, box.x+box.w);
+  const ny = clamp(ent.y, box.y, box.y+box.h);
+  const dx = ent.x-nx, dy = ent.y-ny;
+  const d2 = dx*dx + dy*dy;
+  if(d2 > r*r) return;
+  if(d2 > 0.0001){
+    const d = Math.sqrt(d2);
+    ent.x = nx + dx/d*r;
+    ent.y = ny + dy/d*r;
+    return;
+  }
+  // centre inside the slab: eject along the shallowest axis
+  const left = ent.x - box.x, right = box.x+box.w - ent.x;
+  const top = ent.y - box.y, bottom = box.y+box.h - ent.y;
+  const m = Math.min(left, right, top, bottom);
+  if(m === left) ent.x = box.x - r;
+  else if(m === right) ent.x = box.x + box.w + r;
+  else if(m === top) ent.y = box.y - r;
+  else ent.y = box.y + box.h + r;
+}
+
+/* push a circle {x,y,r} out of every overlapping solid box */
+function resolveSolid(ent, prevX, prevY){
+  for(const o of worldEnt.obstacles){
+    const nx = clamp(ent.x, o.x, o.x+o.w);
+    const ny = clamp(ent.y, o.y, o.y+o.h);
+    const dx = ent.x - nx, dy = ent.y - ny;
+    const d2 = dx*dx + dy*dy;
+    const r = ent.r || 16;
+    if(d2 > r*r) continue;
+    if(d2 > 0.0001){
+      const d = Math.sqrt(d2);
+      ent.x = nx + dx/d*r;
+      ent.y = ny + dy/d*r;
+    } else {
+      // centre is inside the box: push out along the shallowest axis
+      const left = ent.x - o.x, right = o.x+o.w - ent.x;
+      const top = ent.y - o.y, bottom = o.y+o.h - ent.y;
+      const m = Math.min(left, right, top, bottom);
+      if(m === left) ent.x = o.x - r;
+      else if(m === right) ent.x = o.x + o.w + r;
+      else if(m === top) ent.y = o.y - r;
+      else ent.y = o.y + o.h + r;
+    }
+  }
+  // building walls: four solid slabs with one doorway gap per building
+  const T = 22;
+  const r = ent.r || 16;
+  for(const b of worldEnt.buildings){
+    const door = buildingDoor(b);
+    const pads = [
+      {x:b.x,         y:b.y,          w:b.w, h:T,   horiz:true,  gap:door.side==='top'    ? door : null},
+      {x:b.x,         y:b.y+b.h-T,    w:b.w, h:T,   horiz:true,  gap:door.side==='bottom' ? door : null},
+      {x:b.x,         y:b.y,          w:T,   h:b.h, horiz:false, gap:door.side==='left'   ? door : null},
+      {x:b.x+b.w-T,   y:b.y,          w:T,   h:b.h, horiz:false, gap:door.side==='right'  ? door : null}
+    ];
+    for(const seg of pads){
+      if(seg.gap){
+        // skip the doorway span entirely
+        const gc = seg.horiz ? seg.gap.x : seg.gap.y;
+        const gw = seg.gap.w;
+        if(seg.horiz ? Math.abs(ent.x - gc) < gw/2 : Math.abs(ent.y - gc) < gw/2) continue;
+      }
+      if(!boxCircleOverlap(seg, ent, r)) continue;
+      pushCircleOutOfBox(ent, seg, r);
+    }
+  }
+  ent.x = clamp(ent.x, 20, WORLD_W-20);
+  ent.y = clamp(ent.y, 20, WORLD_H-20);
+}
+
+/* a single doorway per building, centred on a random wall */
+function buildingDoor(b){
+  const hash = (b.seed % 4);
+  const gap = 110;
+  if(hash === 0) return {side:'top',    x:b.x + b.w/2, y:b.y,         w:gap};
+  if(hash === 1) return {side:'bottom', x:b.x + b.w/2, y:b.y + b.h,   w:gap};
+  if(hash === 2) return {side:'left',   x:b.x,         y:b.y + b.h/2, w:gap};
+  return              {side:'right',  x:b.x + b.w,   y:b.y + b.h/2, w:gap};
+}
+
+/* ------------- loot inside a building, scaled by depth ------------- */
+function lootForDepth(d, rng){
+  const r = rng();
+  const band = depthBand(d);
+  if(r < .30) return 'xp';                                 // xp clump
+  if(r < .52) return 'weapon';                             // weapon crate
+  if(r < .68) return 'heal';
+  if(r < .78) return band >= 2 ? 'bomb' : 'heal';
+  if(r < .88) return 'frenzy';
+  if(r < .95) return 'magnet';
+  return band >= 3 ? 'weapon2' : 'xp';
+}
+
+function spawnBuildingLoot(b){
+  if(b.looted) return;
+  b.looted = true;
+  const rng = makeRng(b.seed + 77);
+  for(let i=0;i<b.loot;i++){
+    const x = b.x + 70 + rng()*(b.w-140);
+    const y = b.y + 70 + rng()*(b.h-140);
+    const kind = lootForDepth(b.depth, rng);
+    game.drops.push({
+      x, y, kind, inside:true, building:b,
+      life: 999, maxLife: 999, seed: rand(0,100), bob: rand(0,7), alive: true,
+      amount: kind === 'xp' ? Math.round(45 + b.depth*160) : 0
+    });
+  }
+}
+
+/* guard squad waiting inside */
+function spawnBuildingGuards(b){
+  if(b.guarded) return;
+  b.guarded = true;
+  const rng = makeRng(b.seed + 991);
+  for(let i=0;i<b.guards;i++){
+    const e = makeEnemyAt(
+      b.x + 70 + rng()*(b.w-140),
+      b.y + 70 + rng()*(b.h-140)
+    );
+    if(!e) continue;
+    const boost = 1 + b.depth*1.9;
+    e.hp = Math.round(e.hp*boost); e.maxHp = e.hp;
+    e.damage = Math.round(e.damage*(1 + b.depth*.8));
+    e.xp = Math.round(e.xp*(1 + b.depth*1.4));
+    e.guard = true;
+    e.building = b;
+    e.homeX = e.x; e.homeY = e.y;
+    if(b.depth > .72 && i === 0) eliteUpgrade(e);
+  }
+}
 
 /* ------------------------------------------------------------------ *
  *  BOSSES / ELITES / DROPS                                          *
@@ -785,8 +1083,9 @@ function rollDrop(e){
     makeDrop(e.x, e.y, kind);
   }
 }
-function collectDrop(d){
-  const p = game.player;
+function collectDrop(d, taker){
+  const p = taker || game.player;
+  const isPlayer = p === game.player;
   d.alive = false;
   if(d.kind === 'heal'){
     const amount = Math.round(45*stat(p).healMul);
@@ -819,13 +1118,30 @@ function collectDrop(d){
     shake = Math.min(shake+6,9);
     particles(p.x,p.y,'#ffd9a8',30,1.7);
   } else if(d.kind === 'frenzy'){
-    game.frenzy = 6;
+    p.frenzy = 6;                       // personal buff, not a team-wide one
+    if(isPlayer) game.frenzy = 6;       // kept for the HUD chip
     game.texts.push({x:d.x,y:d.y-16,vy:-30,life:1.1,max:1.1,text:'FRENZY',color:'#ff9de0',size:16});
     game.rings.push({x:p.x,y:p.y,r:16,maxR:140,life:.6,max:.6,color:'#ff9de0',width:4});
     particles(p.x,p.y,'#ff9de0',22,1.4);
+  } else if(d.kind === 'weapon' || d.kind === 'weapon2'){
+    const amount = d.kind === 'weapon2' ? 2 : 1;
+    const pool = cardPool(p).filter(c => c.kind === 'weapon');
+    const pick = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
+    if(pick){
+      for(let i=0;i<amount;i++) applyCard(p, pick.id);
+      const lv = weaponLevel(p, pick.id);
+      game.texts.push({x:d.x,y:d.y-18,vy:-30,life:1.2,max:1.2,
+        text:`${pick.icon} ${pick.name} → LV.${lv}`, color:'#ffd166', size:15});
+      game.rings.push({x:d.x,y:d.y,r:8,maxR:90,life:.5,max:.5,color:'#ffd166',width:4});
+      particles(d.x,d.y,'#ffd166',20,1.3);
+    } else {
+      grantXp(p, 80);
+      game.texts.push({x:d.x,y:d.y-18,vy:-30,life:1,max:1,text:'XP +80',color:'#d9ccff',size:14});
+    }
   } else {
-    for(const f of [p, ...game.clones.filter(c=>c.alive)]) grantXp(f, 45);
-    game.texts.push({x:d.x,y:d.y-16,vy:-30,life:.9,max:.9,text:'XP +45',color:'#d9ccff',size:14});
+    const amount = d.amount || 45;
+    grantXp(p, amount);
+    game.texts.push({x:d.x,y:d.y-16,vy:-30,life:.9,max:.9,text:'XP +'+amount,color:'#d9ccff',size:14});
     particles(d.x,d.y,'#c4b5ff',14,1.1);
   }
 }
@@ -839,8 +1155,8 @@ function spawnBoss(){
   const cycle = game.bossCycle || 0;
   const shownName = cycle > 0 ? `${def.name} MK-${cycle+1}` : def.name;
   const a = rand(0,TAU);
-  const x = clamp(W/2 + Math.cos(a)*330, 80, W-80);
-  const y = clamp(H/2 + Math.sin(a)*220, 90, H-90);
+  const x = clamp(game.player.x + Math.cos(a)*420, 80, WORLD_W-80);
+  const y = clamp(game.player.y + Math.sin(a)*420, 80, WORLD_H-80);
   const hp = Math.round(def.hp*(1+tier*.9));
   const boss = {
     x, y, type:'boss', boss:true, kind:def.kind, name:shownName, title:def.title,
@@ -870,10 +1186,7 @@ function eliteUpgrade(e){
 }
 
 /* ------------------------------ enemies --------------------------- */
-function spawnEnemy(){
-  let side = Math.floor(rand(0,4));
-  let x = side===0?-24:side===1?W+24:rand(30,W-30);
-  let y = side===2?-24:side===3?H+24:rand(30,H-30);
+function makeEnemyAt(x, y){
   const st = game.stage;
   const bruteChance = Math.min(.10 + st*.022, .30);
   const runnerChance = Math.min(.16 + st*.03, .38);
@@ -891,8 +1204,19 @@ function spawnEnemy(){
     damage:base.dmg, xp:base.xp, hit:0, stun:0, slow:0, orbitCd:0,
     seed:rand(0,100), wob:rand(0,TAU), alive:true
   };
-  if(game.stage >= 3 && !game.boss && Math.random() < Math.min(.03 + game.stage*.012, .14)) eliteUpgrade(e);
   game.enemies.push(e);
+  return e;
+}
+
+function spawnEnemy(){
+  let side = Math.floor(rand(0,4));
+  // spawn just outside the visible viewport so enemies walk in from the dark
+  const vx0 = cam.x - W/2, vx1 = cam.x + W/2, vy0 = cam.y - H/2, vy1 = cam.y + H/2;
+  let x = side===0 ? vx0-40 : side===1 ? vx1+40 : rand(vx0, vx1);
+  let y = side===2 ? vy0-40 : side===3 ? vy1+40 : rand(vy0, vy1);
+  x = clamp(x, 20, WORLD_W-20); y = clamp(y, 20, WORLD_H-20);
+  const e = makeEnemyAt(x, y);
+  if(game.stage >= 3 && !game.boss && Math.random() < Math.min(.03 + game.stage*.012, .14)) eliteUpgrade(e);
 }
 function allTargets(){ return game.enemies.filter(t=>t.alive); }
 function nearest(f){
@@ -984,7 +1308,7 @@ function summonZombie(f){
     if(game.minions.length >= 12) break;
     const a = rand(0,TAU), r = rand(24,48);
     const z = {
-      x:clamp(f.x+Math.cos(a)*r, 20, W-20), y:clamp(f.y+Math.sin(a)*r, 20, H-20),
+      x:clamp(f.x+Math.cos(a)*r, 20, WORLD_W-20), y:clamp(f.y+Math.sin(a)*r, 20, WORLD_H-20),
       owner:f, lv, hp:spec.hp, maxHp:spec.hp, dmg:spec.dmg,
       life:spec.life, maxLife:spec.life, attackCd:0, seed:rand(0,100),
       bob:rand(0,7), hit:0, alive:true
@@ -1051,7 +1375,7 @@ function summonWisp(f){
   for(let i=0;i<spec.count;i++){
     if(game.wisps.length >= 14) break;
     const a = rand(0,TAU), r = rand(28,54);
-    const wx = clamp(f.x+Math.cos(a)*r, 20, W-20), wy = clamp(f.y+Math.sin(a)*r, 20, H-20);
+    const wx = clamp(f.x+Math.cos(a)*r, 20, WORLD_W-20), wy = clamp(f.y+Math.sin(a)*r, 20, WORLD_H-20);
     game.wisps.push({
       owner:f, lv, x:wx, y:wy, dmg:spec.dmg, radius:spec.radius,
       life:spec.life, maxLife:spec.life, bob:rand(0,7), seed:rand(0,100),
@@ -1075,11 +1399,11 @@ function placeTrap(f, kind){
   const spread = kind === 'mine' ? 72 : kind === 'spike' ? 30 : 36;
   const ang = f.angle + Math.PI + rand(-1.2, 1.2);
   const px = kind === 'mine'
-    ? clamp(f.x + Math.cos(ang)*rand(28, spread), 30, W-30)
-    : clamp(f.x + Math.cos(ang)*rand(6, spread), 24, W-24);
+    ? clamp(f.x + Math.cos(ang)*rand(28, spread), 30, WORLD_W-30)
+    : clamp(f.x + Math.cos(ang)*rand(6, spread), 24, WORLD_W-24);
   const py = kind === 'mine'
-    ? clamp(f.y + Math.sin(ang)*rand(28, spread), 30, H-30)
-    : clamp(f.y + Math.sin(ang)*rand(6, spread), 24, H-24);
+    ? clamp(f.y + Math.sin(ang)*rand(28, spread), 30, WORLD_H-30)
+    : clamp(f.y + Math.sin(ang)*rand(6, spread), 24, WORLD_H-24);
   game.hazards.push({
     kind, lv, owner:f, x:px, y:py, r:spec.radius,
     dmg:spec.dmg, tick:0, tickRate:spec.tick || .45,
@@ -1211,7 +1535,7 @@ function bossAttack(e){
     const n = 2 + e.tier;
     for(let i=0;i<n;i++){
       const a = rand(0,TAU), r = e.r + 26;
-      const hx = clamp(e.x+Math.cos(a)*r, 20, W-20), hy = clamp(e.y+Math.sin(a)*r, 20, H-20);
+      const hx = clamp(e.x+Math.cos(a)*r, 20, WORLD_W-20), hy = clamp(e.y+Math.sin(a)*r, 20, WORLD_H-20);
       game.enemies.push({
         x:hx, y:hy, type:'runner', r:9, hp:24+e.tier*14, maxHp:24+e.tier*14,
         speed:100, damage:8, xp:8, hit:0, stun:0, slow:0, orbitCd:0,
@@ -1244,7 +1568,8 @@ function damageText(x,y,amount,color){
 function hurt(t, amount, source){
   if(!t || !t.alive) return;
   if(t.invuln > 0) return;
-  if(t !== game.player && t.clone !== true && game.frenzy > 0) amount *= 1.6;
+  const attacker = source && (source.owner || source);
+  if(t !== game.player && t.clone !== true && attacker && attacker.frenzy > 0) amount *= 1.6;
   t.hp -= amount;
   t.hit = .12;
   const isEnemy = !t.clone;
@@ -1265,8 +1590,12 @@ function hurt(t, amount, source){
         game.kills++;
         shake = Math.min(shake+ (t.elite?3.4:t.type==='brute'?3:1.2), 6);
         if(t.elite) game.eliteCount++;
-        const bonus = t.elite && killer && killer.level !== undefined ? t.xp : 0;
-        if(t.elite && killer && killer.level !== undefined) grantXp(killer, bonus);
+        /* XP is per individual: only the fighter that landed the kill grows.
+           (Clones level through their own kills and pickups, never the
+           player's bar.) */
+        if(killer && killer.level !== undefined && killer.alive){
+          grantXp(killer, t.xp);
+        }
       }
     }
     if(t.clone){
@@ -1286,7 +1615,8 @@ function bossDefeated(t, killer){
   game.bossFlash = 1;
   shake = 9;
   const xp = t.xp;
-  for(const f of [game.player, ...game.clones.filter(c=>c.alive)]) grantXp(f, xp);
+  if(killer && killer.level !== undefined && killer.alive) grantXp(killer, xp);
+  else grantXp(game.player, Math.round(xp*.4));
   rollDrop(t);
   for(let i=0;i<4;i++){
     const a = i*TAU/4 + .4;
@@ -1317,12 +1647,15 @@ function cloneMove(c,dt){
   const [target,d] = nearest(c);
   const state = (c.hp/c.maxHp<.4?'low':'ok')+'|'+(d<100?'near':d<250?'mid':'far')+'|'
     +(!target?'none':target.type==='brute'?'big':'normal')+'|'
-    +(c.x<70||c.x>W-70||c.y<70||c.y>H-70?'edge':'open');
+    +(c.x<70||c.x>WORLD_W-70||c.y<70||c.y>WORLD_H-70?'edge':'open');
   c.decision -= dt;
   if(c.decision <= 0){
     if(c.state !== null){
       const old = qValues(c.state), next = qValues(state);
+      // extra shaping: being pinned to the world edge is never useful
+      const edge = c.x < 100 || c.x > WORLD_W-100 || c.y < 100 || c.y > WORLD_H-100;
       old[c.action] += 0.18*(c.reward + 0.85*Math.max(...next) - old[c.action]);
+      if(edge) old[c.action] -= 0.02;
     }
     const values = qValues(state);
     c.action = Math.random() < .22 ? Math.floor(rand(0,5)) : values.indexOf(Math.max(...values));
@@ -1351,18 +1684,192 @@ function cloneMove(c,dt){
   const speed = stat(c).speed*(c.dashTime>0?2.7:1);
   c.moving = Math.hypot(vx,vy) > .05;
   c.legPhase += dt*(c.moving?9:0);
-  c.x = clamp(c.x+vx*speed*dt, 17, W-17);
-  c.y = clamp(c.y+vy*speed*dt, 17, H-17);
+
+  /* --- wall-hugging fix ---------------------------------------------
+     The Q-table happily picks "strafe into the wall" forever, which left
+     clones grinding on the arena edge. Detect that we are not actually
+     moving and steer along the wall (plus a periodic random kick). */
+  const beforeX = c.x, beforeY = c.y;
+  const prevVx = vx, prevVy = vy;
+
+  c.r = 15;
+  c.x = clamp(c.x+vx*speed*dt, 17, WORLD_W-17);
+  c.y = clamp(c.y+vy*speed*dt, 17, WORLD_H-17);
+  resolveSolid(c);
+
+  const moved = Math.hypot(c.x-beforeX, c.y-beforeY);
+  const intended = speed*dt;
+  if(intended > 0.2 && moved < intended*0.35){
+    c.stuck = (c.stuck || 0) + dt;
+    if(c.stuck > 0.25){
+      // slide: bounce the desired direction off the nearest blocking wall
+      c.action = Math.floor(rand(0,5));
+      c.stuck = 0;
+      // push away from the world edge we are pinned against
+      const margin = 120;
+      let ax = 0, ay = 0;
+      if(c.x < margin) ax = 1; else if(c.x > WORLD_W-margin) ax = -1;
+      if(c.y < margin) ay = 1; else if(c.y > WORLD_H-margin) ay = -1;
+      const away = Math.hypot(ax,ay);
+      if(away > 0){
+        const nx = (ax/away - prevVx)*0.5, ny = (ay/away - prevVy)*0.5;
+        c.x = clamp(c.x + nx*90*dt*6, 17, WORLD_W-17);
+        c.y = clamp(c.y + ny*90*dt*6, 17, WORLD_H-17);
+      }
+      // tell the learner this direction was a bad idea
+      const vals = qValues(c.state);
+      if(vals[c.action] !== undefined) vals[c.action] -= .25;
+    }
+  } else {
+    // edge penalty so the table learns to stop choosing wall runs
+    const nearEdge = c.x < 90 || c.x > WORLD_W-90 || c.y < 90 || c.y > WORLD_H-90;
+    c.stuck = nearEdge ? Math.max(0, (c.stuck||0) - dt*0.5) : 0;
+  }
   c.reward += dt*.04;
 }
 
 /* -------------------------------- tick ---------------------------- */
+function tickCooldown(dt){
+  game.cooldown = Math.max(0, game.cooldown - dt);
+  shake = Math.max(0, shake - dt*14);
+  game.frenzy = Math.max(0, game.frenzy - dt);
+  syncCamera(dt);
+  const p = game.player;
+
+  // the player (and clones) may still move and grab loot during the breather
+  p.hit = Math.max(0, p.hit-dt);
+  p.invuln = Math.max(0, p.invuln-dt);
+  p.dashCd = Math.max(0, p.dashCd-dt);
+  p.dashTime = Math.max(0, p.dashTime-dt);
+  p.muzzle = Math.max(0, p.muzzle-dt);
+  p.cast = Math.max(0, p.cast-dt);
+  p.hp = Math.min(p.maxHp, p.hp + stat(p).regen*dt);
+  {
+    let dx = (keys.has('d')||keys.has('arrowright')?1:0) - (keys.has('a')||keys.has('arrowleft')?1:0);
+    let dy = (keys.has('s')||keys.has('arrowdown')?1:0) - (keys.has('w')||keys.has('arrowup')?1:0);
+    let analog = 1;
+    if(touch.active){ dx = touch.dx; dy = touch.dy; analog = Math.min(1, Math.hypot(dx,dy)); }
+    let len = Math.hypot(dx,dy);
+    if(len > 0){ dx /= len; dy /= len; p.moveX = dx; p.moveY = dy; } else analog = 0;
+    if(p.dashTime > 0){ dx = p.dashX; dy = p.dashY; analog = 1; }
+    const speed = stat(p).speed*(p.dashTime>0?2.7:1)*analog;
+    p.moving = Math.abs(dx)+Math.abs(dy) > .05;
+    p.legPhase += dt*(p.moving?10:0);
+    p.x = clamp(p.x+dx*speed*dt, 17, WORLD_W-17);
+    p.y = clamp(p.y+dy*speed*dt, 17, WORLD_H-17);
+    p.r = 15;
+    resolveSolid(p);
+  }
+  for(const c of game.clones){
+    if(!c.alive) continue;
+    c.hp = Math.min(c.maxHp, c.hp + stat(c).regen*dt);
+    c.hit = Math.max(0, c.hit-dt);
+    cloneMove(c, dt);
+  }
+
+  // pickups still work, guards stay put
+  const reach = 26;
+  for(const d of game.drops){
+    if(!d.alive) continue;
+    if(dist(p, d) < reach + 14) collectDrop(d);
+  }
+  game.drops = game.drops.filter(d=>d.alive);
+  for(const r of game.rings){ r.life -= dt; r.r += (r.maxR-r.r)*dt*9; }
+  game.rings = game.rings.filter(r=>r.life>0);
+  for(const t2 of game.texts){ t2.y += t2.vy*dt; t2.vy *= .93; t2.life -= dt; }
+  game.texts = game.texts.filter(t2=>t2.life>0);
+  game.particles = game.particles.filter(pp => { pp.life -= dt; pp.x += pp.vx*dt; pp.y += pp.vy*dt; return pp.life>0; });
+
+  $('topStatus').textContent = 'NEXT ROUND IN ' + game.cooldown.toFixed(1);
+  updateHUD();
+  if(game.cooldown <= 0) beginRound();
+}
+
+const COOLDOWN_TIME = 5;
+
+function beginCooldown(){
+  game.state = 'cooldown';
+  game.cooldown = COOLDOWN_TIME;
+  game.cooldown0 = COOLDOWN_TIME;
+  game.roundReady = false;
+  game.spawnPaused = true;
+  $('rewardOverlay').classList.add('hidden');
+  $('topStatus').textContent = 'NEXT ROUND IN ' + COOLDOWN_TIME;
+  notice('ROUND ' + String(game.pendingStage || game.stage).padStart(2,'0'), '準備中… 移動して体勢を整えろ');
+}
+
+function beginRound(){
+  game.state = 'playing';
+  game.cooldown = 0;
+  game.roundReady = true;
+  if(game.pendingStage && game.pendingStage !== game.stage) game.stage = game.pendingStage;
+  game.pendingStage = 0;
+  game.time = 30;
+  game.spawnPaused = false;
+  game.bossTimer = (game.stage % 5 === 0) ? 0.8 : -1;
+  $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
+  if(game.bossTimer > 0) notice('WARNING','ボスが接近している…');
+  else notice('STAGE '+String(game.stage).padStart(2,'0'),'新たなクローンが出現');
+}
+
+/* entering a building spawns its loot + guards; clearing it marks it done */
+function updateBuildings(dt){
+  const p = game.player;
+  for(const b of worldEnt.buildings){
+    const inside = pointInBuilding(p.x, p.y, b);
+    if(inside && !b.entered){
+      b.entered = true;
+      b.discovered = true;
+      spawnBuildingLoot(b);
+      spawnBuildingGuards(b);
+      const band = depthLabel(b.depth);
+      notice('ENTERED · ' + b.name, band.label + ' / 戦利品 ' + b.loot + ' ・ 敵 ' + b.guards);
+      game.rings.push({x:b.x+b.w/2, y:b.y+b.h/2, r:30,
+        maxR:Math.max(b.w,b.h)*.7, life:.8, max:.8, color:band.color, width:5});
+      shake = Math.min(shake+2, 5);
+    }
+    if(!b.cleared && b.entered){
+      const guardsAlive = game.enemies.some(e => e.alive && e.guard && e.building === b);
+      const lootLeft = game.drops.some(d => d.alive && d.building === b);
+      if(!guardsAlive && !lootLeft){
+        b.cleared = true;
+        notice('CLEARED · ' + b.name, 'この建物は制圧済み');
+        game.rings.push({x:b.x+b.w/2, y:b.y+b.h/2, r:20,
+          maxR:Math.max(b.w,b.h)*.5, life:.7, max:.7, color:'#bfe98a', width:3});
+      }
+    }
+  }
+}
+
+/* keep the player centred; shake is applied on top of the camera */
+function syncCamera(dt){
+  const p = game.player;
+  const tx = p.x, ty = p.y;
+  if(cam.x === 0 && cam.y === 0){ cam.x = tx; cam.y = ty; }
+  // smooth follow: fast enough to feel locked, slow enough to avoid jitter
+  const k = 1 - Math.pow(0.0001, dt);
+  cam.x += (tx - cam.x) * k;
+  cam.y += (ty - cam.y) * k;
+  // never show past the world edge
+  const halfW = W/2, halfH = H/2;
+  cam.x = WORLD_W <= W ? WORLD_W/2 : clamp(cam.x, halfW, WORLD_W-halfW);
+  cam.y = WORLD_H <= H ? WORLD_H/2 : clamp(cam.y, halfH, WORLD_H-halfH);
+  cam.shakeX = shake > .1 ? rand(-shake, shake) : 0;
+  cam.shakeY = shake > .1 ? rand(-shake, shake) : 0;
+}
+
 function tick(dt){
+  if(game.state === 'cooldown'){
+    tickCooldown(dt);
+    return;
+  }
   if(game.state !== 'playing') return;
   game.elapsed += dt;
   game.time -= dt;
   shake = Math.max(0, shake - dt*14);
+  syncCamera(dt);
   game.frenzy = Math.max(0, game.frenzy - dt);
+  for(const f of [game.player, ...game.clones]) f.frenzy = Math.max(0, (f.frenzy||0) - dt);
   game.bossFlash = Math.max(0, game.bossFlash - dt*1.6);
   game.afterglow = Math.max(0, game.afterglow - dt);
   if(announceTimer > 0){
@@ -1417,13 +1924,18 @@ function tick(dt){
       let speed = stat(f).speed*(f.dashTime>0?2.7:1)*analog;
       f.moving = Math.abs(dx)+Math.abs(dy) > .05;
       f.legPhase += dt*(f.moving?10:0);
-      f.x = clamp(f.x+dx*speed*dt, 17, W-17);
-      f.y = clamp(f.y+dy*speed*dt, 17, H-17);
+      const px0 = f.x, py0 = f.y;
+      f.x = clamp(f.x+dx*speed*dt, 17, WORLD_W-17);
+      f.y = clamp(f.y+dy*speed*dt, 17, WORLD_H-17);
+      f.r = 15;
+      resolveSolid(f, px0, py0);
     }
     const [target] = nearest(f);
     updateWeapons(f,dt,target);
     if(f.clone && target && f.cd.rifle > .05) f.angle = Math.atan2(target.y-f.y, target.x-f.x);
   }
+
+  updateBuildings(dt);
 
   for(const e of game.enemies){
     if(!e.alive) continue;
@@ -1452,8 +1964,9 @@ function tick(dt){
         }
       }
       const l = Math.hypot(dx,dy) || 1;
-      e.x = clamp(e.x + dx/l*sp*dt, 10, W-10);
-      e.y = clamp(e.y + dy/l*sp*dt, 10, H-10);
+      e.x = clamp(e.x + dx/l*sp*dt, 10, WORLD_W-10);
+      e.y = clamp(e.y + dy/l*sp*dt, 10, WORLD_H-10);
+      resolveSolid(e);
       if(d < e.r+13 && target.invuln <= 0){
         hurt(target, e.damage, null);
         target.invuln = .65;
@@ -1497,8 +2010,8 @@ function tick(dt){
     if(e.charging > 0){
       e.charging -= dt;
       const sp = BOSS_ACTIONS.charge.speed;
-      e.x = clamp(e.x + e.chargeDir.x*sp*dt, 40, W-40);
-      e.y = clamp(e.y + e.chargeDir.y*sp*dt, 40, H-40);
+      e.x = clamp(e.x + e.chargeDir.x*sp*dt, 40, WORLD_W-40);
+      e.y = clamp(e.y + e.chargeDir.y*sp*dt, 40, WORLD_H-40);
       for(const f of fighters){
         if(f.alive && dist(e,f) < e.r+16 && f.invuln <= 0){
           hurt(f, e.damage*BOSS_ACTIONS.charge.dmg, e);
@@ -1512,8 +2025,8 @@ function tick(dt){
     const d = dist(e, game.player) || 1;
     const chase = e.speed*(e.slow>0?.4:1);
     if(d > 150){
-      e.x = clamp(e.x + (game.player.x-e.x)/d*chase*dt, 30, W-30);
-      e.y = clamp(e.y + (game.player.y-e.y)/d*chase*dt, 30, H-30);
+      e.x = clamp(e.x + (game.player.x-e.x)/d*chase*dt, 30, WORLD_W-30);
+      e.y = clamp(e.y + (game.player.y-e.y)/d*chase*dt, 30, WORLD_H-30);
     }
     if(e.attackCd <= 0) bossAttack(e);
   }
@@ -1528,8 +2041,8 @@ function tick(dt){
       const d = dist(m,t);
       if(d > 18){
         const sp = 96 + m.lv*10;
-        m.x = clamp(m.x + (t.x-m.x)/d*sp*dt, 14, W-14);
-        m.y = clamp(m.y + (t.y-m.y)/d*sp*dt, 14, H-14);
+        m.x = clamp(m.x + (t.x-m.x)/d*sp*dt, 14, WORLD_W-14);
+        m.y = clamp(m.y + (t.y-m.y)/d*sp*dt, 14, WORLD_H-14);
       } else if(m.attackCd <= 0){
         hurt(t, m.dmg, m);
         m.attackCd = .55;
@@ -1579,12 +2092,12 @@ function tick(dt){
     if(t){
       const d = dist(w,t) || 1;
       const sp = 168;
-      w.x = clamp(w.x + (t.x-w.x)/d*sp*dt, 12, W-12);
-      w.y = clamp(w.y + (t.y-w.y)/d*sp*dt, 12, H-12);
+      w.x = clamp(w.x + (t.x-w.x)/d*sp*dt, 12, WORLD_W-12);
+      w.y = clamp(w.y + (t.y-w.y)/d*sp*dt, 12, WORLD_H-12);
       if(d < (t.r||13) + 12){ w.alive = false; w.boomed = true; }
     } else {
-      w.x = clamp(w.x + Math.cos(w.bob+w.life)*22*dt, 12, W-12);
-      w.y = clamp(w.y + Math.sin(w.bob+w.life*1.3)*22*dt, 12, H-12);
+      w.x = clamp(w.x + Math.cos(w.bob+w.life)*22*dt, 12, WORLD_W-12);
+      w.y = clamp(w.y + Math.sin(w.bob+w.life*1.3)*22*dt, 12, WORLD_H-12);
     }
     if(w.life <= 0){ w.alive = false; w.boomed = true; }
     if(w.boomed){
@@ -1629,28 +2142,40 @@ function tick(dt){
         b.hitList.push(t);
         if(b.knock){
           const l = Math.hypot(b.vx,b.vy)||1;
-          t.x = clamp(t.x + b.vx/l*b.knock*.14, 12, W-12);
-          t.y = clamp(t.y + b.vy/l*b.knock*.14, 12, H-12);
+          t.x = clamp(t.x + b.vx/l*b.knock*.14, 12, WORLD_W-12);
+          t.y = clamp(t.y + b.vy/l*b.knock*.14, 12, WORLD_H-12);
         }
         if(b.pierce > 0){ b.pierce--; }
         else { b.life = 0; break; }
       }
     }
   }
-  game.bullets = game.bullets.filter(b => b.life>0 && b.x>-30 && b.x<W+30 && b.y>-30 && b.y<H+30);
+  game.bullets = game.bullets.filter(b => b.life>0 && b.x>-60 && b.x<WORLD_W+60 && b.y>-60 && b.y<WORLD_H+60);
 
   // ---- pickups ----
+  /* Loot belongs to whoever reaches it first: the player pulls items in from
+     further away, clones have to physically walk onto them. XP only ever goes
+     to the fighter that made the pickup, which is what keeps levels private
+     per individual. */
+  const squad = [game.player, ...game.clones.filter(c=>c.alive)];
   for(const d of game.drops){
     if(!d.alive) continue;
     d.life -= dt;
     if(d.life <= 0){ d.alive = false; continue; }
-    const dd = dist(d, game.player);
-    if(dd < 118){                       // magnetised toward the player
-      const k = Math.min(1, dt*(2.4 + (118-dd)/28));
-      d.x += (game.player.x-d.x)*k;
-      d.y += (game.player.y-d.y)*k;
+    let taker = null;
+    for(const f of squad){
+      if(!f.alive) continue;
+      const dd = dist(d, f);
+      const magnetic = f === game.player;
+      const reach = magnetic ? 118 : 46;
+      if(dd < reach && dd > 0){
+        const k = Math.min(1, dt*(magnetic ? 2.4 + (118-dd)/28 : 3.4));
+        d.x += (f.x-d.x)*k;
+        d.y += (f.y-d.y)*k;
+      }
+      if(dd < (magnetic ? 26 : 22)){ taker = f; break; }
     }
-    if(dd < 26) collectDrop(d);
+    if(taker) collectDrop(d, taker);
   }
   game.drops = game.drops.filter(d=>d.alive);
   game.enemies = game.enemies.filter(e=>e.alive);
@@ -1693,8 +2218,6 @@ function dash(){
 /* ================================================================== *
  *                              RENDERING                             *
  * ================================================================== */
-const bgCanvas = document.createElement('canvas');
-bgCanvas.width = W; bgCanvas.height = H;
 const dust = [];
 
 function glowSprite(color, size=128){
@@ -1734,148 +2257,311 @@ function rrect(g,x,y,w,h,r){
   g.closePath();
 }
 
-function buildBackground(){
-  const g = bgCanvas.getContext('2d');
-  let seed = 20260113;
-  const rnd = () => (seed = (seed*1664525+1013904223)>>>0) / 4294967296;
-
-  const base = g.createLinearGradient(0,0,W*.4,H);
-  base.addColorStop(0,'#16231d');
-  base.addColorStop(.45,'#1d2f26');
-  base.addColorStop(1,'#101a15');
-  g.fillStyle = base;
-  g.fillRect(0,0,W,H);
-
-  // soft warm pool of light in the middle of the arena
-  const light = g.createRadialGradient(W*.5,H*.45,60,W*.5,H*.45,W*.58);
-  light.addColorStop(0,'rgba(150,200,132,.16)');
-  light.addColorStop(.55,'rgba(78,120,92,.07)');
-  light.addColorStop(1,'rgba(0,0,0,0)');
-  g.fillStyle = light;
-  g.fillRect(0,0,W,H);
-
-  // faint hexagonal tiling
-  g.strokeStyle = 'rgba(158,200,158,.075)';
-  g.lineWidth = 1.2;
-  const R = 46;
-  for(let cy=-1; cy<H/(R*1.5)+1; cy++){
-    for(let cx=-1; cx<W/(R*1.732)+1; cx++){
-      const x = cx*R*1.732 + (cy%2?R*.866:0);
-      const y = cy*R*1.5;
-      g.beginPath();
-      for(let i=0;i<6;i++){
-        const a = Math.PI/3*i + Math.PI/6;
-        const px = x + Math.cos(a)*R, py = y + Math.sin(a)*R;
-        i ? g.lineTo(px,py) : g.moveTo(px,py);
-      }
-      g.closePath();
-      g.stroke();
-    }
-  }
-
-  // mossy patches
-  for(let i=0;i<60;i++){
-    const x = rnd()*W, y = rnd()*H, r = 26+rnd()*90;
-    const gr = g.createRadialGradient(x,y,0,x,y,r);
-    const tone = rnd();
-    gr.addColorStop(0, tone>.5 ? 'rgba(122,166,101,.10)' : 'rgba(86,128,116,.10)');
-    gr.addColorStop(1,'rgba(0,0,0,0)');
-    g.fillStyle = gr;
-    g.beginPath(); g.arc(x,y,r,0,TAU); g.fill();
-  }
-
-  // grass tufts
-  for(let i=0;i<190;i++){
-    const x = rnd()*W, y = rnd()*H;
-    if(x<56||x>W-56||y<56||y>H-56) continue;
-    g.strokeStyle = `rgba(172,214,150,${.07+rnd()*.10})`;
-    g.lineWidth = 1;
-    const h = 3+rnd()*6, lean = rnd()*1.4-.7;
-    for(let b=-1;b<=1;b++){
-      g.beginPath();
-      g.moveTo(x+b*2.2, y);
-      g.quadraticCurveTo(x+b*3+lean*2, y-h*.6, x+b*4.4+lean*4, y-h);
-      g.stroke();
-    }
-  }
-
-  // rocks
-  for(let i=0;i<24;i++){
-    const x = 70+rnd()*(W-140), y = 70+rnd()*(H-140);
-    const s = 6+rnd()*11;
-    g.fillStyle = 'rgba(12,22,17,.45)';
-    g.beginPath(); g.ellipse(x+s*.3, y+s*.72, s*1.25, s*.5, 0, 0, TAU); g.fill();
-    const rg = g.createLinearGradient(x, y-s, x, y+s*.7);
-    rg.addColorStop(0, 'rgba(116,136,120,.55)');
-    rg.addColorStop(.6,'rgba(78,96,84,.52)');
-    rg.addColorStop(1, 'rgba(44,60,50,.5)');
-    g.fillStyle = rg;
-    g.beginPath();
-    g.ellipse(x, y, s, s*.72, rnd()*.6-.3, 0, TAU);
-    g.fill();
-    g.fillStyle = 'rgba(206,232,190,.16)';
-    g.beginPath(); g.ellipse(x-s*.22, y-s*.24, s*.5, s*.24, -.3, 0, TAU); g.fill();
-    g.fillStyle = 'rgba(126,170,110,.20)';
-    g.beginPath(); g.ellipse(x+s*.3, y+s*.18, s*.42, s*.22, .2, 0, TAU); g.fill();
-  }
-
-  // arena boundary
-  g.strokeStyle = 'rgba(190,225,170,.16)';
-  g.lineWidth = 2;
-  rrect(g, 44, 44, W-88, H-88, 18);
-  g.stroke();
-  g.strokeStyle = 'rgba(190,225,170,.07)';
-  g.lineWidth = 1;
-  g.setLineDash([8,12]);
-  rrect(g, 54, 54, W-108, H-108, 14);
-  g.stroke();
-  g.setLineDash([]);
-  // corner brackets
-  g.strokeStyle = 'rgba(200,240,160,.45)';
-  g.lineWidth = 3;
-  const corners = [[44,44,1,1],[W-44,44,-1,1],[44,H-44,1,-1],[W-44,H-44,-1,-1]];
-  for(const [x,y,sx,sy] of corners){
-    g.beginPath();
-    g.moveTo(x, y+sy*34);
-    g.lineTo(x, y);
-    g.lineTo(x+sx*34, y);
-    g.stroke();
-  }
-  g.fillStyle = 'rgba(200,232,180,.18)';
-  g.font = 'bold 10px monospace';
-  g.fillText('SECTOR 01 / SURVIVAL ZONE', 58, H-54);
-  // The coordinate tag lives in the top-right corner on wide fields, but a
-  // portrait field is narrow — it would sit under the HUD/BOSS readout there.
-  if(W / H > 1.1) g.fillText('N 35°  /  E 139°', W-172, 66);
-
-  // vignette baked into the floor
-  const vig = g.createRadialGradient(W/2,H/2,Math.min(W,H)*.46,W/2,H/2,Math.max(W,H)*.74);
-  vig.addColorStop(0,'rgba(0,0,0,0)');
-  vig.addColorStop(1,'rgba(5,10,8,.5)');
-  g.fillStyle = vig;
-  g.fillRect(0,0,W,H);
+/* ================================================================== *
+ *  WORLD RENDERING — camera-space floor, obstacles, buildings      *
+ * ================================================================== */
+function visible(x, y, pad=0){
+  return x > cam.x - W/2 - pad && x < cam.x + W/2 + pad &&
+         y > cam.y - H/2 - pad && y < cam.y + H/2 + pad;
 }
-buildBackground();
-for(let i=0;i<44;i++) dust.push({x:rand(0,W), y:rand(0,H), r:rand(1,3), sp:rand(4,16), a:rand(.05,.2), ph:rand(0,TAU)});
 
-function drawBackground(t){
-  ctx.drawImage(bgCanvas,0,0);
-  // drifting spores
+/* deterministic value noise for tile variation */
+function hash2(x, y){
+  let h = (x*374761393 + y*668265263 + WORLD_SEED) >>> 0;
+  h = (h ^ (h >>> 13)) * 1274126177 >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+const TILE = 150;
+
+function drawWorldFloor(t){
+  const left = cam.x - W/2, top = cam.y - H/2;
+  const x0 = Math.floor(left / TILE) - 1, x1 = Math.ceil((left + W) / TILE) + 1;
+  const y0 = Math.floor(top / TILE) - 1, y1 = Math.ceil((top + H) / TILE) + 1;
+
+  // base ground: outside the arena it turns into cold void, not a black hole
+  ctx.fillStyle = '#0d1512';
+  ctx.fillRect(left - 40, top - 40, W + 80, H + 80);
+  // clamp the tiled ground to the actual world rect
+  const gx0 = Math.max(x0*TILE, 0), gy0 = Math.max(y0*TILE, 0);
+  const gx1 = Math.min((x1+1)*TILE, WORLD_W), gy1 = Math.min((y1+1)*TILE, WORLD_H);
+  if(gx1 > gx0 && gy1 > gy0){
+    ctx.fillStyle = '#1b2a22';
+    ctx.fillRect(gx0, gy0, gx1-gx0, gy1-gy0);
+  }
+
+  for(let ty=y0; ty<=y1; ty++){
+    for(let tx=x0; tx<=x1; tx++){
+      const x = tx*TILE, y = ty*TILE;
+      if(x + TILE <= 0 || y + TILE <= 0 || x >= WORLD_W || y >= WORLD_H) continue;
+      const d = worldDepth(x + TILE/2, y + TILE/2);
+      const n  = hash2(tx, ty);
+      const n2 = hash2(tx*7+3, ty*13+5);
+
+      // biome tint: lush near the plaza, cold stone out in the deep field
+      const lush = 1 - d;
+      const r = Math.round(24 + lush*14 + d*24);
+      const g = Math.round(44 + lush*22 + d*6);
+      const b = Math.round(34 + lush*10 + d*22);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x, y, TILE+1, TILE+1);
+
+      // patchy mottling so large areas never look flat
+      ctx.fillStyle = `rgba(${r+26},${g+30},${b+24},${0.10 + n*0.16})`;
+      ctx.beginPath();
+      ctx.ellipse(x + n*TILE, y + n2*TILE, TILE*(.16 + n*.26), TILE*(.12 + n2*.22), n*3, 0, TAU);
+      ctx.fill();
+
+      // grass tufts / rubble depending on the biome
+      if(n > .55){
+        const count = 1 + Math.floor(n2*3);
+        for(let k=0;k<count;k++){
+          const gx = x + hash2(tx+k, ty)*TILE, gy = y + hash2(tx, ty+k)*TILE;
+          if(d < .55){
+            ctx.strokeStyle = `rgba(168,214,146,${.20 + n*.18})`;
+            ctx.lineWidth = 1.4;
+            for(let bl=-1;bl<=1;bl++){
+              ctx.beginPath();
+              ctx.moveTo(gx+bl*3, gy);
+              ctx.quadraticCurveTo(gx+bl*4+3, gy-7, gx+bl*7+5, gy-13);
+              ctx.stroke();
+            }
+          } else {
+            ctx.fillStyle = `rgba(${60+d*20},${58+d*14},${62+d*18},${.35 + n*.25})`;
+            ctx.beginPath();
+            ctx.ellipse(gx, gy, 2+n*4, 1.6+n*3, n*3, 0, TAU);
+            ctx.fill();
+          }
+        }
+      }
+
+      // cracked slabs in the deep field
+      if(d > .45 && n2 > .78){
+        ctx.strokeStyle = `rgba(12,16,20,${.28 + d*.2})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(x + n*TILE, y + 10);
+        ctx.lineTo(x + TILE*(.4+n*.3), y + TILE*.5);
+        ctx.lineTo(x + TILE*(.2+n2*.5), y + TILE - 10);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // region grid lines + boundary walls of the world
+  ctx.strokeStyle = 'rgba(150,196,150,.06)';
+  ctx.lineWidth = 1;
+  const GRID = TILE*2;
+  for(let gx=Math.floor(left/GRID)*GRID; gx<left+W+GRID; gx+=GRID){
+    ctx.beginPath(); ctx.moveTo(gx, top-20); ctx.lineTo(gx, top+H+20); ctx.stroke();
+  }
+  for(let gy=Math.floor(top/GRID)*GRID; gy<top+H+GRID; gy+=GRID){
+    ctx.beginPath(); ctx.moveTo(left-20, gy); ctx.lineTo(left+W+20, gy); ctx.stroke();
+  }
+
+  // start plaza marker (safe zone)
+  const px = WORLD_W/2, py = WORLD_H/2;
+  if(visible(px, py, 460)){
+    const g = ctx.createRadialGradient(px, py, 20, px, py, 420);
+    g.addColorStop(0, 'rgba(170,230,140,.10)');
+    g.addColorStop(1, 'rgba(170,230,140,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(px, py, 420, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(190,235,160,.20)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 14]);
+    ctx.beginPath(); ctx.arc(px, py, 340, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(200,235,175,.30)';
+    ctx.font = 'bold 15px "Space Grotesk", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('SAFE ZONE', px, py - 360);
+    ctx.textAlign = 'left';
+  }
+
+  // world edge
+  if(cam.x - W/2 < 60 || cam.y - H/2 < 60 || cam.x + W/2 > WORLD_W-60 || cam.y + H/2 > WORLD_H-60){
+    ctx.strokeStyle = 'rgba(255,120,110,.35)';
+    ctx.lineWidth = 6;
+    ctx.setLineDash([26, 20]);
+    ctx.strokeRect(6, 6, WORLD_W-12, WORLD_H-12);
+    ctx.setLineDash([]);
+  }
+}
+
+/* drifting spores that follow the camera so the field feels alive */
+function drawAmbient(t){
   for(const d of dust){
-    const y = (d.y + Math.sin(t*.5+d.ph)*12) % H;
-    const x = (d.x + Math.cos(t*.3+d.ph)*16 + W) % W;
+    const y = d.y + Math.sin(t*.5+d.ph)*12;
+    const x = d.x + Math.cos(t*.3+d.ph)*16;
+    if(!visible(x, y, 40)) continue;
     glow(GLOW.lime, x, y, d.r*12, d.a);
   }
-  // slow light sweep
+  // slow light sweep across the visible area
   const sweep = (Math.sin(t*.16)*.5+.5);
-  ctx.globalAlpha = .055;
-  const grd = ctx.createLinearGradient(W*(sweep-.25), 0, W*(sweep+.15), H);
+  ctx.globalAlpha = .05;
+  const grd = ctx.createLinearGradient(
+    cam.x - W/2 + W*(sweep-.25), cam.y - H/2,
+    cam.x - W/2 + W*(sweep+.15), cam.y + H/2
+  );
   grd.addColorStop(0,'rgba(190,255,170,0)');
   grd.addColorStop(.5,'rgba(190,255,170,1)');
   grd.addColorStop(1,'rgba(190,255,170,0)');
   ctx.fillStyle = grd;
-  ctx.fillRect(0,0,W,H);
+  ctx.fillRect(cam.x - W/2, cam.y - H/2, W, H);
   ctx.globalAlpha = 1;
+}
+
+function drawObstacles(t){
+  for(const o of worldEnt.obstacles){
+    if(!visible(o.cx, o.cy, 220)) continue;
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    // ground shadow
+    ctx.fillStyle = 'rgba(6,12,9,.42)';
+    rrect(ctx, 6, 10, o.w, o.h, 10);
+    ctx.fill();
+    if(o.kind === 'rock'){
+      const g = ctx.createLinearGradient(0, 0, 0, o.h);
+      g.addColorStop(0, '#3d4c44');
+      g.addColorStop(.55, '#2b3831');
+      g.addColorStop(1, '#1b2620');
+      ctx.fillStyle = g;
+      rrect(ctx, 0, 0, o.w, o.h, Math.min(o.w,o.h)*.36);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(150,180,158,.22)';
+      ctx.lineWidth = 2;
+      rrect(ctx, 1, 1, o.w-2, o.h-2, Math.min(o.w,o.h)*.34);
+      ctx.stroke();
+      // facet highlights
+      ctx.fillStyle = 'rgba(176,206,180,.10)';
+      ctx.beginPath();
+      ctx.ellipse(o.w*.36, o.h*.32, o.w*.22, o.h*.16, -.4, 0, TAU);
+      ctx.fill();
+    } else if(o.kind === 'wall'){
+      const g = ctx.createLinearGradient(0, 0, 0, o.h);
+      g.addColorStop(0, '#4a4a40');
+      g.addColorStop(.5, '#35382f');
+      g.addColorStop(1, '#22261f');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, o.w, o.h);
+      ctx.strokeStyle = 'rgba(190,205,170,.20)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, o.w-2, o.h-2);
+      // masonry seams
+      ctx.strokeStyle = 'rgba(12,18,14,.45)';
+      ctx.lineWidth = 1;
+      const horiz = o.w > o.h;
+      const n = Math.floor((horiz ? o.w : o.h) / 46);
+      for(let i=1;i<n;i++){
+        ctx.beginPath();
+        if(horiz){ ctx.moveTo(i*46, 0); ctx.lineTo(i*46, o.h); }
+        else { ctx.moveTo(0, i*46); ctx.lineTo(o.w, i*46); }
+        ctx.stroke();
+      }
+    } else {
+      const g = ctx.createLinearGradient(0, 0, o.w, o.h);
+      g.addColorStop(0, '#6a5330');
+      g.addColorStop(1, '#3f3220');
+      ctx.fillStyle = g;
+      rrect(ctx, 0, 0, o.w, o.h, 5);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,214,150,.30)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(4, 4); ctx.lineTo(o.w-4, o.h-4);
+      ctx.moveTo(o.w-4, 4); ctx.lineTo(4, o.h-4);
+      ctx.stroke();
+      rrect(ctx, 1, 1, o.w-2, o.h-2, 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawBuildings(t){
+  const p = game.player;
+  for(const b of worldEnt.buildings){
+    const cx = b.x + b.w/2, cy = b.y + b.h/2;
+    if(!visible(cx, cy, Math.max(b.w,b.h))) continue;
+    const door = buildingDoor(b);
+    const near = Math.hypot(p.x - cx, p.y - cy) < Math.max(b.w, b.h)*.6 + 120;
+    b.discovered = b.discovered || near;
+
+    // floor plate
+    ctx.fillStyle = b.cleared ? 'rgba(38,54,44,.92)' : 'rgba(30,40,34,.94)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    // interior grid
+    ctx.strokeStyle = 'rgba(150,190,150,.07)';
+    ctx.lineWidth = 1;
+    for(let gx=b.x+60; gx<b.x+b.w; gx+=60){
+      ctx.beginPath(); ctx.moveTo(gx, b.y); ctx.lineTo(gx, b.y+b.h); ctx.stroke();
+    }
+    for(let gy=b.y+60; gy<b.y+b.h; gy+=60){
+      ctx.beginPath(); ctx.moveTo(b.x, gy); ctx.lineTo(b.x+b.w, gy); ctx.stroke();
+    }
+    // warm interior light (better loot glows brighter)
+    const glowA = .06 + b.tier*.045;
+    const lg = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.max(b.w,b.h)*.62);
+    const tint = ['160,210,150','190,220,140','240,210,130','255,180,110','255,140,120'][b.tier] || '190,220,150';
+    lg.addColorStop(0, `rgba(${tint},${glowA})`);
+    lg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+
+    // walls with a doorway gap
+    const T = 22;
+    ctx.fillStyle = '#39443a';
+    const walls = [
+      [b.x, b.y, b.w, T],
+      [b.x, b.y+b.h-T, b.w, T],
+      [b.x, b.y, T, b.h],
+      [b.x+b.w-T, b.y, T, b.h]
+    ];
+    for(const [wx, wy, ww, wh] of walls){
+      // subtract door
+      if(door.side === 'top' && wy === b.y) drawWallWithGap(wx, wy, ww, wh, door.x, door.w, true);
+      else if(door.side === 'bottom' && wy === b.y+b.h-T) drawWallWithGap(wx, wy, ww, wh, door.x, door.w, true);
+      else if(door.side === 'left' && wx === b.x) drawWallWithGap(wx, wy, ww, wh, door.y, door.w, false);
+      else if(door.side === 'right' && wx === b.x+b.w-T) drawWallWithGap(wx, wy, ww, wh, door.y, door.w, false);
+      else ctx.fillRect(wx, wy, ww, wh);
+    }
+    // wall top highlight
+    ctx.strokeStyle = 'rgba(190,215,175,.18)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(b.x+1, b.y+1, b.w-2, b.h-2);
+
+    // door frame marker
+    ctx.fillStyle = 'rgba(240,215,150,.55)';
+    if(door.side === 'top') ctx.fillRect(door.x - door.w/2, b.y - 3, door.w, 6);
+    if(door.side === 'bottom') ctx.fillRect(door.x - door.w/2, b.y+b.h-3, door.w, 6);
+    if(door.side === 'left') ctx.fillRect(b.x - 3, door.y - door.w/2, 6, door.w);
+    if(door.side === 'right') ctx.fillRect(b.x+b.w-3, door.y - door.w/2, 6, door.w);
+
+    // label plate above the roof
+    if(b.discovered){
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 12px "Space Grotesk", monospace';
+      ctx.fillStyle = b.cleared ? 'rgba(160,190,160,.55)' : 'rgba(255,225,170,.85)';
+      ctx.fillText((b.cleared ? 'CLEARED' : 'CONTAINER TIER ' + (b.tier+1)), cx, b.y - 16);
+      ctx.font = 'bold 9px "Space Grotesk", monospace';
+      ctx.fillStyle = 'rgba(200,225,180,.5)';
+      ctx.fillText('LOOT x' + b.loot + '  ·  GUARDS x' + b.guards, cx, b.y - 3);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+function drawWallWithGap(x, y, w, h, gapCentre, gapWidth, horizontal){
+  if(horizontal){
+    const g0 = gapCentre - gapWidth/2 - x, g1 = gapCentre + gapWidth/2 - x;
+    ctx.fillRect(x, y, clamp(g0, 0, w), h);
+    ctx.fillRect(x + clamp(g1, 0, w), y, w - clamp(g1, 0, w), h);
+  } else {
+    const g0 = gapCentre - gapWidth/2 - y, g1 = gapCentre + gapWidth/2 - y;
+    ctx.fillRect(x, y, w, clamp(g0, 0, h));
+    ctx.fillRect(x, y + clamp(g1, 0, h), w, h - clamp(g1, 0, h));
+  }
 }
 
 /* ----------------------------- fighters --------------------------- */
@@ -2370,7 +3056,9 @@ function drawDrop(d,t){
     magnet:{color:'#9fe6ff', glow:GLOW.blue,  icon:'◎'},
     bomb:  {color:'#ffb066', glow:GLOW.amber, icon:'✹'},
     frenzy:{color:'#ff9de0', glow:GLOW.purple,icon:'✦'},
-    xp:    {color:'#c4b5ff', glow:GLOW.purple,icon:'✧'}
+    xp:    {color:'#c4b5ff', glow:GLOW.purple,icon:'✧'},
+    weapon:{color:'#ffd166', glow:GLOW.amber, icon:'✦'},
+    weapon2:{color:'#ff7a5c', glow:GLOW.red,  icon:'★'}
   };
   const k = kinds[d.kind] || kinds.heal;
   const blink = d.life < 3.5 ? (Math.floor(t*8)%2 ? .35 : 1) : 1;
@@ -2600,13 +3288,20 @@ function drawHazard(h,t){
 /* ------------------------------ render ---------------------------- */
 function render(t){
   ctx.setTransform(1,0,0,1,0,0);
-  if(shake > .1){
-    ctx.translate(rand(-shake,shake), rand(-shake,shake));
-  }
-  drawBackground(t);
+  // camera: everything below draws in world coordinates
+  syncCamera(0);
+  ctx.translate(
+    Math.round(-cam.x + W/2 + cam.shakeX),
+    Math.round(-cam.y + H/2 + cam.shakeY)
+  );
+  drawWorldFloor(t);
+  drawObstacles(t);
+  drawBuildings(t);
+  drawAmbient(t);
 
   // rings / shockwaves
   for(const r of game.rings){
+    if(!visible(r.x, r.y, r.maxR + 120)) continue;
     const k = r.life/r.max;
     ctx.globalAlpha = k*.8;
     ctx.strokeStyle = r.color;
@@ -2618,13 +3313,16 @@ function render(t){
   ctx.globalAlpha = 1;
 
   // traps sit flat on the floor, under everything else
-  for(const h of game.hazards) drawHazard(h,t);
-  for(const m of game.minions) drawMinion(m,t);
-  for(const d of game.drones) drawDrone(d,t);
-  for(const w of game.wisps) drawWisp(w,t);
-  for(const e of game.enemies) e.boss ? drawBoss(e,t) : drawEnemy(e,t);
-  for(const d of game.drops) drawDrop(d,t);
-  for(const c of game.clones) drawFighter(c,t);
+  for(const h of game.hazards) if(visible(h.x,h.y,80)) drawHazard(h,t);
+  for(const m of game.minions) if(visible(m.x,m.y,80)) drawMinion(m,t);
+  for(const d of game.drones) if(visible(d.x,d.y,80)) drawDrone(d,t);
+  for(const w of game.wisps) if(visible(w.x,w.y,80)) drawWisp(w,t);
+  for(const e of game.enemies){
+    if(!visible(e.x, e.y, e.boss ? 200 : 90)) continue;
+    e.boss ? drawBoss(e,t) : drawEnemy(e,t);
+  }
+  for(const d of game.drops) if(visible(d.x,d.y,70)) drawDrop(d,t);
+  for(const c of game.clones) if(visible(c.x,c.y,90)) drawFighter(c,t);
   drawFighter(game.player,t);
 
   // beams (chain lightning)
@@ -2656,6 +3354,7 @@ function render(t){
 
   // bullets
   for(const b of game.bullets){
+    if(!visible(b.x, b.y, 60)) continue;
     const lifeK = clamp(b.life/b.maxLife,0,1);
     const bulb = b.hostile ? GLOW.red
       : b.color==='#b8ff83'||b.color==='#d9ffa1' ? GLOW.green
@@ -2682,6 +3381,7 @@ function render(t){
 
   // particles
   for(const p of game.particles){
+    if(!visible(p.x, p.y, 40)) continue;
     const k = clamp(p.life*3,0,1);
     ctx.globalAlpha = k;
     ctx.fillStyle = p.color;
@@ -2718,6 +3418,144 @@ function render(t){
     ctx.fillStyle = 'rgba(140,200,120,.05)';
     ctx.fillRect(0,0,W,H);
   }
+
+  // screen-space UI (minimap, off-screen markers, cooldown ring)
+  ctx.setTransform(1,0,0,1,0,0);
+  drawMinimap(t);
+  drawOffscreenMarkers(t);
+  if(game.state === 'cooldown') drawCooldownRing(t);
+}
+
+/* ---------------------------- screen UI --------------------------- */
+/* the minimap has to stay readable but never eat a phone screen */
+function minimapSize(){
+  const base = Math.min(W, H);
+  return Math.round(clamp(base * 0.16, 82, 132));
+}
+const MINIMAP = { get size(){ return minimapSize(); }, pad: 12 };
+
+function drawMinimap(t){
+  const m = MINIMAP.size;
+  const x = W - m - MINIMAP.pad, y = H - m - MINIMAP.pad;
+  const k = m / WORLD_W;
+  ctx.save();
+  ctx.globalAlpha = .9;
+  // frame
+  ctx.fillStyle = 'rgba(10,18,14,.72)';
+  ctx.fillRect(x, y, m, m);
+  ctx.strokeStyle = 'rgba(170,210,165,.35)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, m, m);
+
+  // buildings
+  for(const b of worldEnt.buildings){
+    const band = DEPTH_NAMES[b.tier] || DEPTH_NAMES[0];
+    ctx.fillStyle = b.cleared ? 'rgba(140,190,150,.55)'
+      : b.entered ? 'rgba(255,235,170,.9)' : band.color;
+    ctx.globalAlpha = b.discovered ? .95 : .45;
+    const bw = Math.max(3, b.w*k), bh = Math.max(3, b.h*k);
+    ctx.fillRect(x + b.x*k, y + b.y*k, bw, bh);
+  }
+  ctx.globalAlpha = 1;
+
+  // viewport rectangle
+  ctx.strokeStyle = 'rgba(210,240,190,.28)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + (cam.x - W/2)*k, y + (cam.y - H/2)*k, W*k, H*k);
+
+  // enemies as faint dots (only nearby ones, to stay cheap)
+  ctx.fillStyle = 'rgba(255,130,110,.55)';
+  for(const e of game.enemies){
+    if(!e.alive || !visible(e.x, e.y, 900)) continue;
+    ctx.fillRect(x + e.x*k - 1, y + e.y*k - 1, 2, 2);
+  }
+  // clones
+  ctx.fillStyle = 'rgba(255,205,130,.9)';
+  for(const c of game.clones){
+    if(!c.alive) continue;
+    ctx.fillRect(x + c.x*k - 1.5, y + c.y*k - 1.5, 3, 3);
+  }
+  // player
+  const px = x + game.player.x*k, py = y + game.player.y*k;
+  ctx.fillStyle = '#d8ff9e';
+  ctx.beginPath(); ctx.arc(px, py, 3.2, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(216,255,158,.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(px, py, 6 + Math.sin(t*4)*1.4, 0, TAU); ctx.stroke();
+  ctx.restore();
+}
+
+/* arrows pointing at loot/buildings that are off screen */
+function drawOffscreenMarkers(t){
+  const interest = [];
+  for(const b of worldEnt.buildings){
+    if(b.cleared) continue;
+    interest.push({x:b.x + b.w/2, y:b.y + b.h/2, color: DEPTH_NAMES[b.tier].color, kind:'building', size: b.tier+1});
+  }
+  for(const d of game.drops){
+    if(d.alive) interest.push({x:d.x, y:d.y, color:'#ffd166', kind:'drop', size:1});
+  }
+  const cx = W/2, cy = H/2;
+  const margin = 26;
+  ctx.save();
+  for(const it of interest){
+    const sx = it.x - cam.x + cx, sy = it.y - cam.y + cy;
+    if(sx > margin && sx < W-margin && sy > margin && sy < H-margin) continue;
+    const dx = sx - cx, dy = sy - cy;
+    const ang = Math.atan2(dy, dx);
+    const rx = (W/2 - margin), ry = (H/2 - margin);
+    const scale = Math.min(rx / Math.abs(Math.cos(ang) || 1e-6), ry / Math.abs(Math.sin(ang) || 1e-6));
+    const mx = cx + Math.cos(ang)*scale, my = cy + Math.sin(ang)*scale;
+    ctx.translate(mx, my);
+    ctx.rotate(ang);
+    ctx.globalAlpha = it.kind === 'building' ? .85 : .55;
+    ctx.fillStyle = it.color;
+    ctx.beginPath();
+    const s = 5 + it.size*1.2;
+    ctx.moveTo(s, 0); ctx.lineTo(-s*.7, s*.65); ctx.lineTo(-s*.7, -s*.65);
+    ctx.closePath(); ctx.fill();
+    ctx.setTransform(1,0,0,1,0,0);
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/* the 5 second breather gets its own big countdown */
+function drawCooldownRing(t){
+  // parked low so it never covers the player
+  const cx = W/2, cy = H*0.66, R = 54;
+  const k = 1 - game.cooldown / (game.cooldown0 || COOLDOWN_TIME);
+  ctx.save();
+  // dim the field a touch to read as "between rounds"
+  ctx.fillStyle = 'rgba(8,20,26,.18)';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = 'rgba(160,225,255,.22)';
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = '#9fe6ff';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI/2, -Math.PI/2 + TAU*k); ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = '#eaf8ff';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 34px "Space Grotesk", monospace';
+  ctx.fillText(game.cooldown.toFixed(1), cx, cy + 12);
+  ctx.font = 'bold 11px "Space Grotesk", monospace';
+  ctx.fillStyle = 'rgba(200,235,220,.85)';
+  ctx.fillText('NEXT ROUND', cx, cy + 32);
+  // top banner
+  ctx.fillStyle = 'rgba(12,26,32,.72)';
+  rrect(ctx, cx-150, 20, 300, 34, 4);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(159,230,255,.4)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#cdeeff';
+  ctx.font = 'bold 12px "Space Grotesk", monospace';
+  ctx.fillText('ROUND ' + String(game.stage).padStart(2,'0') + '  //  PREPARE', cx, 42);
+  ctx.textAlign = 'left';
+  ctx.restore();
 }
 
 /* ------------------------------- loop ----------------------------- */
@@ -2905,18 +3743,21 @@ document.addEventListener('visibilitychange', ()=>{
   }
 });
 
+buildWorld();          // generate the map before any run starts
 newGame();
 for(let i=0;i<12;i++) spawnEnemy();
 game.enemies.forEach(e=>{
-  e.x = rand(70,W-70); e.y = rand(70,H-70);
-  if(Math.hypot(e.x-W/2, e.y-H/2) < 170) e.y = clamp(e.y+230, 60, H-60);
+  e.x = rand(70,WORLD_W-70); e.y = rand(70,WORLD_H-70);
+  if(Math.hypot(e.x-game.player.x, e.y-game.player.y) < 260) e.y = clamp(e.y+300, 60, WORLD_H-60);
 });
 requestAnimationFrame(frame);
 // Optional test hook (only active when a harness sets window.__CLONE_DEBUG__).
 if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
   window.__cloneGame = {
     get g(){ return game; }, stat, applyCard, availableCards, spawnEnemy, start, render, tick,
-    weaponLevel, WEAPONS, WEAPON_SPEC, hurt, step:(n,dt=.0167)=>{ for(let i=0;i<n;i++) tick(dt); }
+    weaponLevel, WEAPONS, WEAPON_SPEC, hurt, step:(n,dt=.0167)=>{ for(let i=0;i<n;i++) tick(dt); },
+    WORLD, cam, worldEnt, worldDepth, depthLabel, buildWorld, resolveSolid, makeEnemyAt,
+    collectDrop, spawnBuildingLoot, spawnBuildingGuards, beginCooldown, beginRound, W, H
   };
 }
 })();
