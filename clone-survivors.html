@@ -251,7 +251,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
 @media (pointer:coarse){body.immersive .hud-right{margin-top:30px}}
 
 </style>
-  <meta name="build-version" content="1.3.0" />
+  <meta name="build-version" content="1.4.0" />
 </head>
 <body>
   <div class="app">
@@ -333,7 +333,7 @@ const TAU = Math.PI*2;
 /* The arena used to be exactly one screen. It is now a large scrolling world
    with the camera locked on the player, so gameplay bounds are WORLD_* while
    W/H remain the viewport (and the authoring size for the baked backdrop). */
-const WORLD = { w: 4600, h: 4600 };
+const WORLD = { w: 9000, h: 9000 };
 const WORLD_W = WORLD.w, WORLD_H = WORLD.h;
 /* persistent camera + world state (survives newGame so the map is stable) */
 const cam = { x: 0, y: 0, shakeX: 0, shakeY: 0 };
@@ -397,7 +397,57 @@ const WEAPONS = [
    levels:[
      '足元に毒の沼を設置。触れた敵を持続的に蝕む。',
      '沼が広がり、毒のダメージと持続時間が上昇。',
-     '覚醒：強毒になり、敵を大きく弱らせる。']}
+     '覚醒：強毒になり、敵を大きく弱らせる。']},
+  {id:'railgun', icon:'⊸', name:'レールガン', tag:'RANGED',
+   levels:[
+     '一直線に貫く高速弾を撃つ。射線上にいる敵をまとめて撃ち抜く。',
+     '弾が太く高速化し、貫通後の威力が落ちにくくなる。',
+     '覚醒：着弾点で炸裂し、周囲の敵も巻き込む。']},
+  {id:'ricochet', icon:'⤴', name:'リコシェット', tag:'RANGED',
+   levels:[
+     '壁で跳ね返る弾を撃つ。狭い施設内ほど凶悪。',
+     '跳ね返る回数と弾数が増える。',
+     '覚醒：弾が敵の間を縫うように跳び続ける。']},
+  {id:'flak', icon:'✺', name:'フレアバースト', tag:'RANGED',
+   levels:[
+     '上空で炸裂する榴弾を撃ち上げ、破片を降らせる。',
+     '榴弾が2発になり、破片の数が増える。',
+     '覚醒：破片が地面で燃え上がり、範囲を焼き続ける。']},
+  {id:'holy', icon:'✦', name:'ホーリービーム', tag:'RANGED',
+   levels:[
+     '上空から光の柱が降り、敵を焼く。高さに強い自動攻撃。',
+     '本数が増え、発動間隔が短くなる。',
+     '覚醒：柱が敵を追尾し、撃破時に聖なる爆発を起こす。']},
+  {id:'boomerang', icon:'↺', name:'ブーメランソー', tag:'RANGED',
+   levels:[
+     '投げた刃が弧を描いて戻ってくる。往路と復路の両方で斬る。',
+     '刃が2枚になり、飛距離が伸びる。',
+     '覚醒：3枚になり、戻る時に敵を引き寄せる。']},
+  {id:'turret', icon:'⌸', name:'セントリータレット', tag:'SUMMON',
+   levels:[
+     'その場に固定砲台を設置。自動で敵を撃ち続ける。',
+     '砲台が2基になり、連射が速くなる。',
+     '覚醒：3基になり、砲台が近くの敵へ同時射撃する。']},
+  {id:'guardian', icon:'⛨', name:'ガーディアンシールド', tag:'SUMMON',
+   levels:[
+     '周囲を回る守護者を召喚。触れた敵を弾き、時々ビームを放つ。',
+     '守護者が2体になり、耐久と攻撃力が上がる。',
+     '覚醒：自身とクローンにシールドを張り、ダメージを軽減する。']},
+  {id:'vortex', icon:'≋', name:'ヴォルテックス', tag:'UTILITY',
+   levels:[
+     '周囲の敵をゆっくり引き寄せる重力場を展開する。',
+     '引力が強まり、発動中は敵が鈍足になる。',
+     '覚醒：引き寄せた敵が中心で爆発する。']},
+  {id:'beam', icon:'≡', name:'プリズムレーザー', tag:'RANGED',
+   levels:[
+     '溜めた後に極太レーザーを照射し、射線上の敵を焼き払う。',
+     '照射時間が伸び、威力が上がる。',
+     '覚醒：照射中に移動してもレーザーが追従する。']},
+  {id:'blizzard', icon:'❅', name:'ブリザード', tag:'RANGED',
+   levels:[
+     '周囲に雪を降らせ、範囲内の敵を継続的に凍えさせる。',
+     '範囲が広がり、凍結が長く続く。',
+     '覚醒：凍った敵が砕け散り、周囲に氷片を撒き散らす。']}
 ];
 
 const WEAPON_SPEC = {
@@ -440,7 +490,47 @@ const WEAPON_SPEC = {
   poison:[
     {cd:3.6, radius:58, dmg:.42, life:5.5, max:4, tick:.55},
     {cd:2.8, radius:70, dmg:.55, life:6.5, max:6, tick:.50},
-    {cd:2.1, radius:86, dmg:.68, life:7.5, max:8, tick:.45}]
+    {cd:2.1, radius:86, dmg:.68, life:7.5, max:8, tick:.45}],
+  railgun:[
+    {cd:1.55, dmg:1.9, speed:900, width:5,  pierce:6,  blast:0},
+    {cd:1.25, dmg:2.5, speed:1050, width:7, pierce:12, blast:0},
+    {cd:1.00, dmg:3.1, speed:1200, width:9, pierce:99, blast:56}],
+  ricochet:[
+    {cd:1.30, dmg:.85, shots:1, bounces:2, speed:420, range:520},
+    {cd:1.05, dmg:1.00, shots:2, bounces:4, speed:470, range:620},
+    {cd:.82,  dmg:1.20, shots:3, bounces:6, speed:520, range:720}],
+  flak:[
+    {cd:1.70, dmg:1.05, shells:1, frags:5,  radius:78},
+    {cd:1.40, dmg:1.25, shells:2, frags:7,  radius:92},
+    {cd:1.10, dmg:1.45, shells:2, frags:9,  radius:108}],
+  holy:[
+    {cd:1.90, dmg:1.35, beams:1, radius:46, track:0},
+    {cd:1.45, dmg:1.60, beams:2, radius:54, track:0},
+    {cd:1.10, dmg:1.90, beams:3, radius:62, track:1}],
+  boomerang:[
+    {cd:1.50, dmg:.90, count:1, reach:230, spin:6.5},
+    {cd:1.25, dmg:1.10, count:2, reach:290, spin:7.5},
+    {cd:1.00, dmg:1.35, count:3, reach:350, spin:8.5}],
+  turret:[
+    {count:1, hp:120, dmg:.55, rate:.75, range:330, life:16},
+    {count:2, hp:150, dmg:.68, rate:.60, range:360, life:20},
+    {count:3, hp:180, dmg:.82, rate:.48, range:400, life:24}],
+  guardian:[
+    {count:1, radius:70, dmg:.60, beamCd:2.2, block:1},
+    {count:2, radius:80, dmg:.75, beamCd:1.8, block:2},
+    {count:3, radius:92, dmg:.90, beamCd:1.4, block:3}],
+  vortex:[
+    {cd:6.0, radius:150, pull:44, duration:2.2, slow:.55},
+    {cd:4.8, radius:180, pull:64, duration:2.8, slow:.40},
+    {cd:3.8, radius:210, pull:88, duration:3.4, slow:.30}],
+  beam:[
+    {cd:4.2, dmg:.55, width:16, duration:.9, length:460},
+    {cd:3.6, dmg:.72, width:20, duration:1.2, length:520},
+    {cd:3.0, dmg:.90, width:26, duration:1.5, length:600}],
+  blizzard:[
+    {cd:3.2, radius:120, dmg:.30, slow:1.2, duration:3.0},
+    {cd:2.6, radius:150, dmg:.40, slow:1.8, duration:3.6},
+    {cd:2.0, radius:184, dmg:.52, slow:2.4, duration:4.2}]
 };
 
 const STATS = [
@@ -474,7 +564,9 @@ function fighter(x,y,clone=false){
   return {
     x, y, clone, hp:100, maxHp:100, level:1, xp:0,
     upgrades:{}, weapons:{rifle:1},
-    cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0, wisp:0, mine:0, spike:0, poison:0},
+    cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0, wisp:0, mine:0, spike:0, poison:0,
+        railgun:0, ricochet:0, flak:0, holy:0, boomerang:0, turret:0, guardian:0, vortex:0, beam:0, blizzard:0},
+    bladesBack:[], torusCd:0, swingAnim:0, aimAngle:-Math.PI/2, face:1, shield:0,
     orbitPhase:rand(0,TAU), blades:[],
     shoot:rand(.05,.4), dashCd:0, dashTime:0, invuln:0, hit:0, muzzle:0, cast:0,
     angle:clone?rand(0,TAU):-Math.PI/2, alive:true, decision:0, action:0, state:null, reward:0,
@@ -487,7 +579,7 @@ function newGame(){
   game = {
     state:'ready', stage:1, time:30, elapsed:0, kills:0,
     player:fighter(WORLD_W/2, WORLD_H/2), clones:[], enemies:[], bullets:[], minions:[],
-    drones:[], wisps:[], hazards:[],
+    drones:[], wisps:[], hazards:[], boomerangs:[], turrets:[],
     particles:[], texts:[], beams:[], rings:[], sparks:[], drops:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:'',
     cooldown:0, cooldown0:5, roundReady:false, roundAnchor:{x:0,y:0}, pendingStage:0,
@@ -554,8 +646,12 @@ function applyCard(f,id){
     const lv = weaponLevel(f,id);
     if(lv >= 3) return;
     f.weapons[id] = lv + 1;
-    const cdKey = {zombie:'zombie', wisp:'wisp', mine:'mine', spike:'spike', poison:'poison'}[id];
-    if(lv === 0 && cdKey) f.cd[cdKey] = .45;
+    const cdKey = {zombie:'zombie', wisp:'wisp', mine:'mine', spike:'spike', poison:'poison',
+                   railgun:'railgun', ricochet:'ricochet', flak:'flak', holy:'holy',
+                   boomerang:'boomerang', turret:'turret', vortex:'vortex', beam:'beam',
+                   blizzard:'blizzard'}[id];
+    if(lv === 0 && cdKey && f.cd[cdKey] !== undefined) f.cd[cdKey] = .45;
+    if(lv === 0 && id === 'turret') f.cd.turret = .1;
     if(id === 'drone') syncDrones(f);
     return;
   }
@@ -843,15 +939,16 @@ function buildWorld(){
      a shack near the start, a vault at the edge of the map. Each band gets a
      couple of candidates scattered around its ring. */
   const BANDS = [
-    {rad:[480, 760],   rooms:0},
-    {rad:[980, 1350],  rooms:1},
-    {rad:[1550, 1900], rooms:2},
-    {rad:[2050, 2350], rooms:3}
+    {rad:[520, 900],    rooms:0},
+    {rad:[1250, 1750],  rooms:0},
+    {rad:[2000, 2600],  rooms:1},
+    {rad:[2800, 3400],  rooms:2},
+    {rad:[3600, 4100],  rooms:3}
   ];
   for(let band=0; band<BANDS.length; band++){
     const def = BANDS[band];
     let made = 0, tries = 0;
-    while(made < 3 && tries < 220){
+    while(made < 4 && tries < 400){
       tries++;
       const room = BUILDING_ROOMS[def.rooms];
       const w = room.w + Math.floor(rng()*3)*40;
@@ -880,7 +977,7 @@ function buildWorld(){
   // ---- solid obstacles: rocks, walls, crates (block movement) ----
   const shapes = ['rock','wall','crate'];
   let placed = 0, tries = 0;
-  while(placed < 340 && tries < 14000){
+  while(placed < 900 && tries < 40000){
     tries++;
     let x = rng()*WORLD_W, y = rng()*WORLD_H;
     x = clamp(x, 150, WORLD_W-150); y = clamp(y, 150, WORLD_H-150);
@@ -900,6 +997,57 @@ function buildWorld(){
       solid: true, blocksShots: kind !== 'crate' || rng() < .6
     });
     placed++;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  SOLID LOOKUP — a uniform grid over the obstacles.                 *
+ *  The world holds ~900 props and every actor asks "is this point      *
+ *  solid?" several times per frame, so a full scan turned into tens    *
+ *  of millions of tests. Bucketing by cell makes each query O(1)-ish.  *
+ * ------------------------------------------------------------------ */
+const SOLID_CELL = 280;
+const SOLID_GRID = { cols:0, rows:0, buckets:null, key:-1 };
+function solidGridKey(){
+  return worldEnt.obstacles.length;
+}
+function solidGridBuild(){
+  SOLID_GRID.cols = Math.ceil(WORLD_W / SOLID_CELL);
+  SOLID_GRID.rows = Math.ceil(WORLD_H / SOLID_CELL);
+  const n = SOLID_GRID.cols * SOLID_GRID.rows;
+  const buckets = new Array(n);
+  for(let i=0;i<n;i++) buckets[i] = [];
+  for(const o of worldEnt.obstacles){
+    const cx0 = Math.max(0, Math.floor(o.x / SOLID_CELL));
+    const cy0 = Math.max(0, Math.floor(o.y / SOLID_CELL));
+    const cx1 = Math.min(SOLID_GRID.cols-1, Math.floor((o.x+o.w) / SOLID_CELL));
+    const cy1 = Math.min(SOLID_GRID.rows-1, Math.floor((o.y+o.h) / SOLID_CELL));
+    for(let cy=cy0; cy<=cy1; cy++){
+      for(let cx=cx0; cx<=cx1; cx++){
+        buckets[cy*SOLID_GRID.cols + cx].push(o);
+      }
+    }
+  }
+  SOLID_GRID.buckets = buckets;
+  SOLID_GRID.key = solidGridKey();
+}
+function solidGridReady(){
+  if(SOLID_GRID.key !== solidGridKey()) solidGridBuild();
+  return SOLID_GRID.buckets;
+}
+/* calls fn(o) for every obstacle that could touch the circle (x,y,r) */
+function eachObstacleNear(x, y, r, fn){
+  const buckets = solidGridReady();
+  const cols = SOLID_GRID.cols, rows = SOLID_GRID.rows;
+  const cx0 = Math.max(0, Math.floor((x-r) / SOLID_CELL));
+  const cy0 = Math.max(0, Math.floor((y-r) / SOLID_CELL));
+  const cx1 = Math.min(cols-1, Math.floor((x+r) / SOLID_CELL));
+  const cy1 = Math.min(rows-1, Math.floor((y+r) / SOLID_CELL));
+  for(let cy=cy0; cy<=cy1; cy++){
+    for(let cx=cx0; cx<=cx1; cx++){
+      const list = buckets[cy*cols + cx];
+      for(let i=0;i<list.length;i++) fn(list[i]);
+    }
   }
 }
 
@@ -933,13 +1081,14 @@ function pushCircleOutOfBox(ent, box, r){
 
 /* push a circle {x,y,r} out of every overlapping solid box */
 function resolveSolid(ent, prevX, prevY){
-  for(const o of worldEnt.obstacles){
+  const rr0 = ent.r || 16;
+  eachObstacleNear(ent.x, ent.y, rr0, o=>{
     const nx = clamp(ent.x, o.x, o.x+o.w);
     const ny = clamp(ent.y, o.y, o.y+o.h);
     const dx = ent.x - nx, dy = ent.y - ny;
     const d2 = dx*dx + dy*dy;
-    const r = ent.r || 16;
-    if(d2 > r*r) continue;
+    const r = rr0;
+    if(d2 > r*r) return;
     if(d2 > 0.0001){
       const d = Math.sqrt(d2);
       ent.x = nx + dx/d*r;
@@ -954,7 +1103,7 @@ function resolveSolid(ent, prevX, prevY){
       else if(m === top) ent.y = o.y - r;
       else ent.y = o.y + o.h + r;
     }
-  }
+  });
   // building walls: four solid slabs with one doorway gap per building
   const T = 22;
   const r = ent.r || 16;
@@ -989,6 +1138,202 @@ function buildingDoor(b){
   if(hash === 1) return {side:'bottom', x:b.x + b.w/2, y:b.y + b.h,   w:gap};
   if(hash === 2) return {side:'left',   x:b.x,         y:b.y + b.h/2, w:gap};
   return              {side:'right',  x:b.x + b.w,   y:b.y + b.h/2, w:gap};
+}
+
+/* ================================================================== *
+ *  NAVIGATION — solvers for things that must not grind on walls      *
+ * ================================================================== */
+
+/* Are we trying to go somewhere we cannot reach in a straight line?  Used to
+   decide when a solver needs to take over instead of pushing into a wall. */
+function blockedAhead(ent, tx, ty, r){
+  const d = Math.hypot(tx-ent.x, ty-ent.y);
+  if(d < 1) return false;
+  const steps = Math.min(6, Math.ceil(d/40));
+  const nx = (tx-ent.x)/d, ny = (ty-ent.y)/d;
+  for(let i=1;i<=steps;i++){
+    const px = ent.x + nx*(d/steps)*i;
+    const py = ent.y + ny*(d/steps)*i;
+    if(solidAt(px, py, r)) return true;
+  }
+  return false;
+}
+
+function solidAt(x, y, r){
+  r = r || 14;
+  /* hot path: query the spatial grid directly, no closure allocation */
+  {
+    const buckets = solidGridReady();
+    const cols = SOLID_GRID.cols, rows = SOLID_GRID.rows;
+    const cx0 = Math.max(0, Math.floor((x-r) / SOLID_CELL));
+    const cy0 = Math.max(0, Math.floor((y-r) / SOLID_CELL));
+    const cx1 = Math.min(cols-1, Math.floor((x+r) / SOLID_CELL));
+    const cy1 = Math.min(rows-1, Math.floor((y+r) / SOLID_CELL));
+    const r2 = r*r;
+    for(let cy=cy0; cy<=cy1; cy++){
+      for(let cx=cx0; cx<=cx1; cx++){
+        const list = buckets[cy*cols + cx];
+        for(let i=0;i<list.length;i++){
+          const o = list[i];
+          const nx = clamp(x, o.x, o.x+o.w), ny = clamp(y, o.y, o.y+o.h);
+          const dx = x-nx, dy = y-ny;
+          if(dx*dx+dy*dy < r2) return o;
+        }
+      }
+    }
+  }
+  const T = 22;
+  for(const b of worldEnt.buildings){
+    if(x < b.x-r || x > b.x+b.w+r || y < b.y-r || y > b.y+b.h+r) continue;
+    const door = buildingDoor(b);
+    const nearDoorX = Math.abs(x - door.x) < door.w/2 + r*0.2;
+    const nearDoorY = Math.abs(y - door.y) < door.w/2 + r*0.2;
+    const slabs = [
+      {x:b.x, y:b.y, w:b.w, h:T, gap: door.side==='top' ? nearDoorX : false},
+      {x:b.x, y:b.y+b.h-T, w:b.w, h:T, gap: door.side==='bottom' ? nearDoorX : false},
+      {x:b.x, y:b.y, w:T, h:b.h, gap: door.side==='left' ? nearDoorY : false},
+      {x:b.x+b.w-T, y:b.y, w:T, h:b.h, gap: door.side==='right' ? nearDoorY : false}
+    ];
+    for(const sl of slabs){
+      if(sl.gap) continue;
+      const nx = clamp(x, sl.x, sl.x+sl.w), ny = clamp(y, sl.y, sl.y+sl.h);
+      const dx = x-nx, dy = y-ny;
+      if(dx*dx+dy*dy < r*r) return sl;
+    }
+  }
+  return null;
+}
+
+/* Small navigation grid. Rebuilt lazily and reused across entities, this is
+   what lets the horde walk through doorways instead of into walls. */
+const NAV = { cell: 110, cols:0, rows:0, blocked:null, builtFor: -1 };
+
+function navInit(){
+  NAV.cols = Math.ceil(WORLD_W / NAV.cell);
+  NAV.rows = Math.ceil(WORLD_H / NAV.cell);
+  NAV.blocked = new Uint8Array(NAV.cols * NAV.rows);
+  for(let cy=0; cy<NAV.rows; cy++){
+    for(let cx=0; cx<NAV.cols; cx++){
+      const x = (cx+.5)*NAV.cell, y = (cy+.5)*NAV.cell;
+      // a cell is passable if its centre and a small ring around it are clear
+      let blocked = solidAt(x, y, 24) ? 1 : 0;
+      if(!blocked){
+        let hits = 0;
+        for(let k=0;k<4;k++){
+          const a = k*Math.PI/2;
+          if(solidAt(x+Math.cos(a)*30, y+Math.sin(a)*30, 20)) hits++;
+        }
+        if(hits >= 3) blocked = 1;   // virtually sealed
+      }
+      NAV.blocked[cy*NAV.cols + cx] = blocked;
+    }
+  }
+  NAV.builtFor = worldEnt.obstacles.length + worldEnt.buildings.length;
+}
+
+function navIndex(x, y){
+  const cx = clamp(Math.floor(x / NAV.cell), 0, NAV.cols-1);
+  const cy = clamp(Math.floor(y / NAV.cell), 0, NAV.rows-1);
+  return cy*NAV.cols + cx;
+}
+function navPoint(idx){
+  const cx = idx % NAV.cols, cy = Math.floor(idx / NAV.cols);
+  return {x:(cx+.5)*NAV.cell, y:(cy+.5)*NAV.cell};
+}
+
+/* A* on the navigation grid. Returns world-space waypoints, or null. */
+function findPath(sx, sy, tx, ty, maxNodes){
+  if(!NAV.blocked || NAV.builtFor !== worldEnt.obstacles.length + worldEnt.buildings.length) navInit();
+  maxNodes = maxNodes || 2600;
+  const start = navIndex(sx, sy), goal = navIndex(tx, ty);
+  if(start === goal) return [{x:tx, y:ty}];
+  const cols = NAV.cols, rows = NAV.rows;
+  const open = [start];
+  const came = new Int32Array(cols*rows).fill(-1);
+  const gScore = new Float32Array(cols*rows).fill(Infinity);
+  const fScore = new Float32Array(cols*rows).fill(Infinity);
+  const inOpen = new Uint8Array(cols*rows);
+  gScore[start] = 0;
+  const gx = goal % cols, gy = Math.floor(goal / cols);
+  const h = idx => {
+    const cx = idx % cols, cy = Math.floor(idx / cols);
+    return Math.hypot(cx-gx, cy-gy);
+  };
+  fScore[start] = h(start);
+  inOpen[start] = 1;
+  let expanded = 0;
+  const closed = new Uint8Array(cols*rows);
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  while(open.length && expanded < maxNodes){
+    // pick the lowest fScore (small enough lists for a linear scan)
+    let bi = 0;
+    for(let i=1;i<open.length;i++) if(fScore[open[i]] < fScore[open[bi]]) bi = i;
+    const cur = open.splice(bi,1)[0];
+    inOpen[cur] = 0;
+    if(cur === goal){
+      // walk back
+      const out = [];
+      let n = cur;
+      while(n !== -1 && n !== start){
+        out.push(navPoint(n));
+        n = came[n];
+      }
+      out.reverse();
+      // finish exactly on the target
+      if(out.length) out[out.length-1] = {x:tx, y:ty};
+      else out.push({x:tx, y:ty});
+      return out;
+    }
+    closed[cur] = 1;
+    expanded++;
+    const cx = cur % cols, cy = Math.floor(cur / cols);
+    for(const [dx,dy] of dirs){
+      const nx2 = cx+dx, ny2 = cy+dy;
+      if(nx2 < 0 || ny2 < 0 || nx2 >= cols || ny2 >= rows) continue;
+      const ni = ny2*cols + nx2;
+      if(NAV.blocked[ni] || closed[ni]) continue;
+      const step = (dx && dy) ? 1.42 : 1;
+      const tentative = gScore[cur] + step;
+      if(tentative >= gScore[ni]) continue;
+      came[ni] = cur;
+      gScore[ni] = tentative;
+      fScore[ni] = tentative + h(ni);
+      if(!inOpen[ni]){ open.push(ni); inOpen[ni] = 1; }
+    }
+  }
+  return null;
+}
+
+/* Steering for anything that has to walk around obstacles. Entities get a
+   cached path, follow it, and recompute when their target moves too far. */
+function steerAround(ent, tx, ty, dt, opts){
+  opts = opts || {};
+  const repath = opts.repath || 0.9;
+  const speed = opts.speed || 60;
+  ent.navT = (ent.navT || 0) - dt;
+
+  const straight = !blockedAhead(ent, tx, ty, ent.r || 14);
+  if(straight && (!ent.path || ent.path.length < 2)){
+    ent.path = null;
+    return {x:tx, y:ty, direct:true};
+  }
+
+  const targetMoved = !ent.pathGoal || Math.hypot(ent.pathGoal.x-tx, ent.pathGoal.y-ty) > 180;
+  if(ent.navT <= 0 || targetMoved || !ent.path || !ent.path.length){
+    ent.navT = repath * (0.8 + Math.random()*0.4);
+    ent.pathGoal = {x:tx, y:ty};
+    ent.path = findPath(ent.x, ent.y, tx, ty);
+    ent.pathIdx = 0;
+  }
+  if(!ent.path || !ent.path.length) return {x:tx, y:ty, direct:false};
+
+  let wp = ent.path[Math.min(ent.pathIdx||0, ent.path.length-1)];
+  // advance through waypoints we have already reached
+  while(wp && Math.hypot(wp.x-ent.x, wp.y-ent.y) < 34 && (ent.pathIdx||0) < ent.path.length-1){
+    ent.pathIdx = (ent.pathIdx||0) + 1;
+    wp = ent.path[ent.pathIdx];
+  }
+  return {x:wp.x, y:wp.y, direct:false};
 }
 
 /* ------------- loot inside a building, scaled by depth ------------- */
@@ -1162,6 +1507,7 @@ function spawnBoss(){
     x, y, type:'boss', boss:true, kind:def.kind, name:shownName, title:def.title,
     r:def.r, hp, maxHp:hp, speed:def.speed, damage:Math.round(def.damage*(1+tier*.4)),
     xp:def.xp, hit:0, stun:0, slow:0, orbitCd:0, seed:rand(0,100), wob:rand(0,TAU),
+    swing:0, atkCd:0, face:0, lunge:0,
     alive:true, tier, attackCd:2.0, phase:0, chargeCd:5, charging:0, chargeDir:{x:0,y:0},
     laser:0, laserAngle:0, roar:.8, bossIndex:idx
   };
@@ -1202,7 +1548,8 @@ function makeEnemyAt(x, y){
   const e = {
     x, y, type, r:base.r, hp:base.hp, maxHp:base.hp, speed:base.speed,
     damage:base.dmg, xp:base.xp, hit:0, stun:0, slow:0, orbitCd:0,
-    seed:rand(0,100), wob:rand(0,TAU), alive:true
+    seed:rand(0,100), wob:rand(0,TAU), alive:true,
+    swing:0, atkCd:0, face:0, lunge:0
   };
   game.enemies.push(e);
   return e;
@@ -1394,7 +1741,7 @@ function placeTrap(f, kind){
     const old = game.hazards.find(h=>h.kind===kind && h.owner===f);
     if(old) old.alive = false;
   }
-  if(game.hazards.length >= 70) game.hazards.shift();
+  if(game.hazards.length >= 90) game.hazards.shift();
   const idx = game.hazards.length % 7;
   const spread = kind === 'mine' ? 72 : kind === 'spike' ? 30 : 36;
   const ang = f.angle + Math.PI + rand(-1.2, 1.2);
@@ -1442,7 +1789,47 @@ function updateHazards(dt){
     h.tick -= dt;
     if(h.tick > 0) continue;
     h.tick = h.tickRate;
+    if(h.kind === 'flakshell'){
+      h.delay -= dt;
+      if(h.delay <= 0){
+        h.alive = false;
+        const dmg = h.dmg * stat(h.owner).damage;
+        for(let i=0;i<h.frags;i++){
+          const a = i*TAU/h.frags + rand(-.1,.1);
+          game.sparks.push({x:h.x, y:h.y, vx:Math.cos(a)*rand(120,300), vy:Math.sin(a)*rand(120,300),
+            life:.45, max:.45, owner:h.owner, dmg:dmg*.28, color:'#ffca8a', alive:true, r:4});
+        }
+        for(const e of game.enemies){
+          if(e.alive && dist(h,e) < h.r*.6) hurt(e, dmg*.5, h.owner);
+        }
+        game.rings.push({x:h.x,y:h.y,r:12,maxR:h.r,life:.4,max:.4,color:'#ffb066',width:5});
+        particles(h.x,h.y,'#ffca8a',16,1.4);
+        shake = Math.min(shake+2.0, 5);
+      }
+      continue;
+    }
     const dmg = h.dmg * stat(h.owner).damage;
+    if(h.kind === 'vortex'){
+      // suck everything inward, then (awakened) detonate
+      for(const e of game.enemies){
+        if(!e.alive) continue;
+        const d = dist(h,e);
+        if(d < h.r && d > 12){
+          const k = h.pull*dt;
+          e.x += (h.x-e.x)/d*k;
+          e.y += (h.y-e.y)/d*k;
+          e.slow = Math.max(e.slow, .18);
+        }
+      }
+      if(h.lv >= 3 && h.life <= 0){
+        for(const e of game.enemies){
+          if(e.alive && dist(h,e) < h.r*.55) hurt(e, dmg*2.4, h.owner);
+        }
+        game.rings.push({x:h.x,y:h.y,r:20,maxR:h.r*.7,life:.5,max:.5,color:'#c4b5ff',width:7});
+        particles(h.x,h.y,'#d5c4ff',26,1.8);
+      }
+      continue;
+    }
     for(const e of game.enemies){
       if(!e.alive) continue;
       if(dist(h,e) < h.r + e.r*.5){
@@ -1452,6 +1839,19 @@ function updateHazards(dt){
           if(h.lv >= 3 && Math.random() < .25) e.stun = Math.max(e.stun, .3);
         } else if(h.kind === 'poison'){
           e.slow = Math.max(e.slow, .7);
+        } else if(h.kind === 'holy'){
+          e.slow = Math.max(e.slow, .25);
+        } else if(h.kind === 'blizzard'){
+          e.slow = Math.max(e.slow, h.slow);
+          if(h.lv >= 3 && e.hp <= 0) { /* frozen shatter handled below */ }
+        }
+      }
+    }
+    if(h.kind === 'blizzard' && h.lv >= 3){
+      for(const e of game.enemies){
+        if(e.alive && e.hp < e.maxHp*.25 && dist(h,e) < h.r){
+          hurt(e, dmg*1.4, h.owner);
+          particles(e.x,e.y,'#dff4ff',8,1.1);
         }
       }
     }
@@ -1463,7 +1863,9 @@ function updateWeapons(f,dt,target){
   f.cd.rifle -= dt;
   if(f.cd.rifle <= 0 && target && dist(f,target) <= s.range){
     rifleFire(f,target,s);
-    if(!f.clone) f.angle = f.angle;
+    f.aimAngle = Math.atan2(target.y-f.y, target.x-f.x);
+    f.face = Math.cos(f.aimAngle) < -0.01 ? -1 : 1;
+    f.swingAnim = 0.28;
   }
   if(w.shotgun){
     f.cd.shotgun -= dt;
@@ -1493,8 +1895,233 @@ function updateWeapons(f,dt,target){
     f.cd[kind] -= dt;
     if(f.cd[kind] <= 0) placeTrap(f, kind);
   }
+
+  /* ---- extended arsenal ---- */
+  if(w.railgun){
+    f.cd.railgun -= dt;
+    const spec = WEAPON_SPEC.railgun[w.railgun-1];
+    if(f.cd.railgun <= 0 && target && dist(f,target) <= 520) railgunFire(f,target,s);
+  }
+  if(w.ricochet){
+    f.cd.ricochet -= dt;
+    const spec = WEAPON_SPEC.ricochet[w.ricochet-1];
+    if(f.cd.ricochet <= 0 && target && dist(f,target) <= spec.range) ricochetFire(f,target,s);
+  }
+  if(w.flak){
+    f.cd.flak -= dt;
+    if(f.cd.flak <= 0 && target && dist(f,target) <= 400) flakFire(f,target,s);
+  }
+  if(w.holy){
+    f.cd.holy -= dt;
+    if(f.cd.holy <= 0 && target && dist(f,target) <= 420) holyFire(f,target,s);
+  }
+  if(w.boomerang){
+    f.cd.boomerang -= dt;
+    if(f.cd.boomerang <= 0 && target && dist(f,target) <= 460) boomerangFire(f,target,s);
+  }
+  if(w.turret){
+    f.cd.turret -= dt;
+    if(f.cd.turret <= 0) summonTurret(f);
+  }
+  if(w.guardian) guardianTick(f,dt,s);
+  if(w.vortex){
+    f.cd.vortex -= dt;
+    if(f.cd.vortex <= 0) vortexCast(f);
+  }
+  if(w.beam){
+    f.cd.beam -= dt;
+    if(f.cd.beam <= 0 && target && dist(f,target) <= 560) beamFire(f,target,s);
+  }
+  if(w.blizzard){
+    f.cd.blizzard -= dt;
+    if(f.cd.blizzard <= 0) blizzardCast(f);
+  }
 }
 
+
+
+/* ================================================================== *
+ *  EXTENDED ARSENAL                                                  *
+ * ================================================================== */
+/* --- railgun: a piercing slug, optional blast at max range -------- */
+function railgunFire(f,target,s){
+  const lv = weaponLevel(f,'railgun'), spec = WEAPON_SPEC.railgun[lv-1];
+  const a = Math.atan2(target.y-f.y, target.x-f.x);
+  f.angle = a; f.aimAngle = a;
+  const sp = spec.speed;
+  game.bullets.push({
+    x:f.x+Math.cos(a)*22, y:f.y+Math.sin(a)*22, px:f.x, py:f.y,
+    vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+    life:.9, maxLife:.9, damage:s.damage*spec.dmg, owner:f,
+    r:spec.width*.5, pierce:spec.pierce, hitList:[],
+    color:f.clone?'#ffd08a':'#cfeaff', rail:true, blast:spec.blast,
+    knock:34
+  });
+  game.beams.push({pts:[{x:f.x,y:f.y},{x:f.x+Math.cos(a)*28,y:f.y+Math.sin(a)*28}],
+                   life:.12, max:.12, color:'#dff3ff', width:5});
+  f.muzzle = .18; f.cd.railgun = spec.cd; f.swingAnim = .24;
+  shake = Math.min(shake+1.4, 4);
+}
+/* --- ricochet: bounces off walls and enemies --------------------- */
+function ricochetFire(f,target,s){
+  const lv = weaponLevel(f,'ricochet'), spec = WEAPON_SPEC.ricochet[lv-1];
+  const base = Math.atan2(target.y-f.y, target.x-f.x);
+  for(let i=0;i<spec.shots;i++){
+    const a = base + (i-(spec.shots-1)/2)*.22 + rand(-.05,.05);
+    game.bullets.push({
+      x:f.x+Math.cos(a)*20, y:f.y+Math.sin(a)*20, px:f.x, py:f.y,
+      vx:Math.cos(a)*spec.speed, vy:Math.sin(a)*spec.speed,
+      life:spec.range/spec.speed, maxLife:spec.range/spec.speed,
+      damage:s.damage*spec.dmg, owner:f, r:4.5, pierce:0, hitList:[],
+      color:'#bff0c0', bounces:spec.bounces, bounceR:0
+    });
+  }
+  f.muzzle = .14; f.cd.ricochet = spec.cd; f.swingAnim = .24;
+}
+/* --- flak: lobbed shells that burst into fragments ---------------- */
+function flakFire(f,target,s){
+  const lv = weaponLevel(f,'flak'), spec = WEAPON_SPEC.flak[lv-1];
+  for(let i=0;i<spec.shells;i++){
+    const a = Math.atan2(target.y-f.y, target.x-f.x) + rand(-.3,.3);
+    const d = Math.min(dist(f,target), 340);
+    const tx = f.x+Math.cos(a)*d, ty = f.y+Math.sin(a)*d;
+    game.hazards.push({
+      kind:'flakshell', owner:f, lv, x:tx, y:ty, r:spec.radius,
+      dmg:spec.dmg*1.5, frags:spec.frags, delay:.45 + i*.12,
+      tick:0, tickRate:99, life:99, maxLife:99, seed:rand(0,100), alive:true
+    });
+    particles(tx, ty, '#ffb066', 4, .7);
+  }
+  f.muzzle = .2; f.cd.flak = spec.cd; f.swingAnim = .28;
+}
+/* --- holy beam: pillars of light from above ---------------------- */
+function holyFire(f,target,s){
+  const lv = weaponLevel(f,'holy'), spec = WEAPON_SPEC.holy[lv-1];
+  for(let i=0;i<spec.beams;i++){
+    let tx = target.x, ty = target.y;
+    if(spec.track && i > 0){
+      const others = game.enemies.filter(e=>e.alive && e !== target && dist(e,f) < 380);
+      if(others.length){ const o = others[Math.floor(Math.random()*others.length)]; tx = o.x; ty = o.y; }
+    }
+    game.hazards.push({
+      kind:'holy', owner:f, lv, x:tx + rand(-14,14), y:ty + rand(-14,14),
+      r:spec.radius, dmg:spec.dmg, tick:0, tickRate:.28,
+      life:.7, maxLife:.7, seed:rand(0,100), alive:true
+    });
+    particles(tx, ty, '#ffe9a3', 8, .8);
+  }
+  f.cd.holy = spec.cd; f.cast = .2;
+}
+/* --- boomerang: out and back ------------------------------------ */
+function boomerangFire(f,target,s){
+  const lv = weaponLevel(f,'boomerang'), spec = WEAPON_SPEC.boomerang[lv-1];
+  const base = Math.atan2(target.y-f.y, target.x-f.x);
+  for(let i=0;i<spec.count;i++){
+    const a = base + (i-(spec.count-1)/2)*.55;
+    game.boomerangs = game.boomerangs || [];
+    game.boomerangs.push({
+      owner:f, lv, x:f.x, y:f.y, ang:a, spin:0,
+      speed:spec.reach*1.9, reach:spec.reach, dmg:s.damage*spec.dmg,
+      out:true, hitList:[], alive:true, color:'#cfd8ff'
+    });
+  }
+  f.cd.boomerang = spec.cd; f.swingAnim = .26;
+}
+/* --- turret: stationary gun emplacement -------------------------- */
+function summonTurret(f){
+  const lv = weaponLevel(f,'turret'), spec = WEAPON_SPEC.turret[lv-1];
+  game.turrets = game.turrets || [];
+  if(game.turrets.length >= 26) return;
+  const owned = game.turrets.filter(t=>t.owner===f && t.alive);
+  for(let i=owned.length;i<spec.count;i++){
+    const a = rand(0,TAU), r = rand(40,80);
+    game.turrets.push({
+      owner:f, lv, x:clamp(f.x+Math.cos(a)*r, 24, WORLD_W-24),
+      y:clamp(f.y+Math.sin(a)*r, 24, WORLD_H-24),
+      r:11, hp:spec.hp, maxHp:spec.hp, dmg:spec.dmg, rate:spec.rate,
+      range:spec.range, cd:rand(.2,.8), life:spec.life, maxLife:spec.life,
+      hit:0, aim:rand(0,TAU), alive:true, seed:rand(0,100)
+    });
+    particles(f.x, f.y, '#b9c7d1', 8);
+    game.rings.push({x:f.x,y:f.y,r:8,maxR:52,life:.4,max:.4,color:'#b9c7d1',width:3});
+  }
+  f.cd.turret = 6.0;
+}
+/* --- guardian: orbiting shield that body-blocks ------------------ */
+function guardianTick(f,dt,s){
+  const lv = weaponLevel(f,'guardian'), spec = WEAPON_SPEC.guardian[lv-1];
+  f.torusCd = (f.torusCd||0) - dt;
+  if(!f.guardians) f.guardians = [];
+  if(f.guardians.length > spec.count) f.guardians.length = spec.count;
+  while(f.guardians.length < spec.count) f.guardians.push({a:rand(0,TAU), beam:1.4, hitCd:0});
+  f.orbitPhase = (f.orbitPhase||0) + dt*1.1;
+  for(let i=0;i<f.guardians.length;i++){
+    const gd = f.guardians[i];
+    const a = f.orbitPhase + i*TAU/Math.max(1,spec.count);
+    gd.x = f.x + Math.cos(a)*spec.radius;
+    gd.y = f.y + Math.sin(a)*spec.radius;
+    gd.hitCd = Math.max(0, gd.hitCd - dt);
+    for(const e of game.enemies){
+      if(!e.alive || gd.hitCd > 0) continue;
+      if(Math.hypot(e.x-gd.x, e.y-gd.y) < (e.r||13)+15){
+        hurt(e, s.damage*spec.dmg, f);
+        gd.hitCd = .4;
+        // knock the enemy back out of the ring
+        const kd = Math.hypot(e.x-f.x, e.y-f.y)||1;
+        e.x = clamp(e.x + (e.x-f.x)/kd*18, 12, WORLD_W-12);
+        e.y = clamp(e.y + (e.y-f.y)/kd*18, 12, WORLD_H-12);
+      }
+    }
+    gd.beam -= dt;
+    if(gd.beam <= 0){
+      gd.beam = spec.beamCd;
+      const [t] = nearest(gd);
+      if(t && Math.hypot(t.x-gd.x, t.y-gd.y) < 340){
+        hurt(t, s.damage*spec.dmg*2.2, f);
+        game.beams.push({pts:[{x:gd.x,y:gd.y},{x:t.x,y:t.y}], life:.18, max:.18, color:'#ffe9a3', width:3});
+        particles(t.x,t.y,'#ffe9a3',6,.9);
+      }
+    }
+  }
+  // awakened: a light barrier dampens incoming damage
+  f.shield = lv>=3 ? 1 : 0;
+}
+/* --- vortex: gravity well ---------------------------------------- */
+function vortexCast(f){
+  const lv = weaponLevel(f,'vortex'), spec = WEAPON_SPEC.vortex[lv-1];
+  game.hazards.push({
+    kind:'vortex', owner:f, lv, x:f.x, y:f.y, r:spec.radius,
+    pull:spec.pull, dmg:spec.slow, slow:spec.slow, tick:0, tickRate:.25,
+    life:spec.duration, maxLife:spec.duration, seed:rand(0,100), alive:true
+  });
+  f.cd.vortex = spec.cd; f.cast = .25;
+  game.rings.push({x:f.x,y:f.y,r:20,maxR:spec.radius,life:.4,max:.4,color:'#c4b5ff',width:3});
+}
+/* --- prism laser: charged sweeping beam -------------------------- */
+function beamFire(f,target,s){
+  const lv = weaponLevel(f,'beam'), spec = WEAPON_SPEC.beam[lv-1];
+  game.beams.push({
+    kind:'laser', pts:[{x:f.x,y:f.y}],
+    angle: Math.atan2(target.y-f.y, target.x-f.x),
+    owner:f, lv, length:spec.length, width:spec.width,
+    damagePerTick:s.damage*spec.dmg, tick:0, tickRate:.16,
+    follow: lv>=3 ? f : null,
+    life:spec.duration, max:spec.duration, color:'#c8f0ff'
+  });
+  f.cd.beam = spec.cd; f.cast = .3;
+  shake = Math.min(shake+1.6, 5);
+}
+/* --- blizzard: persistent freezing field ------------------------- */
+function blizzardCast(f){
+  const lv = weaponLevel(f,'blizzard'), spec = WEAPON_SPEC.blizzard[lv-1];
+  game.hazards.push({
+    kind:'blizzard', owner:f, lv, x:f.x, y:f.y, r:spec.radius,
+    dmg:spec.dmg, slow:spec.slow, tick:0, tickRate:.4,
+    life:spec.duration, maxLife:spec.duration, seed:rand(0,100), alive:true
+  });
+  f.cd.blizzard = spec.cd; f.cast = .2;
+  game.rings.push({x:f.x,y:f.y,r:12,maxR:spec.radius,life:.5,max:.5,color:'#dff4ff',width:3});
+}
 
 /* --------------------------- boss attacks ------------------------- */
 function bossShot(e, angle, speed, dmg, r, color){
@@ -1506,6 +2133,7 @@ function bossShot(e, angle, speed, dmg, r, color){
   });
 }
 function bossAttack(e){
+  e.swing = 0.34;   // every boss special telegraphs before it fires
   const def = BOSS_DEFS[e.bossIndex];
   const tierMul = 1 + e.tier*.35;
   const attack = e.phase % 3 === 2 ? def.secondary : def.primary;
@@ -1539,7 +2167,10 @@ function bossAttack(e){
       game.enemies.push({
         x:hx, y:hy, type:'runner', r:9, hp:24+e.tier*14, maxHp:24+e.tier*14,
         speed:100, damage:8, xp:8, hit:0, stun:0, slow:0, orbitCd:0,
-        seed:rand(0,100), wob:rand(0,TAU), alive:true
+        seed:rand(0,100), wob:rand(0,TAU), alive:true,
+        /* marked as a summon so it is treated as a hostile combatant,
+           hostile to the player AND every clone (not to other enemies) */
+        summoned:true, summoner:e
       });
       particles(hx,hy,'#ff9d86',6,.8);
     }
@@ -1568,6 +2199,8 @@ function damageText(x,y,amount,color){
 function hurt(t, amount, source){
   if(!t || !t.alive) return;
   if(t.invuln > 0) return;
+  /* awakened guardian shield: fighters (never enemies) soak part of the hit */
+  if(t.shield > 0 && t.level !== undefined) amount *= .62;
   const attacker = source && (source.owner || source);
   if(t !== game.player && t.clone !== true && attacker && attacker.frenzy > 0) amount *= 1.6;
   t.hp -= amount;
@@ -1645,6 +2278,42 @@ function qValues(state){
 }
 function cloneMove(c,dt){
   const [target,d] = nearest(c);
+
+  /* When there is nothing to fight, a clone should still do something:
+     regroup with the player, and go after nearby loot. This used to be an
+     early `return`, which froze the whole squad the moment the field was
+     cleared. */
+  if(!target){
+    let goal = null;
+    if(game.player && game.player.alive && dist(c, game.player) > 150){
+      goal = {x:game.player.x, y:game.player.y};
+    } else {
+      let bestD = 520;
+      for(const dr of game.drops){
+        if(!dr.alive) continue;
+        const dd = dist(c, dr);
+        if(dd < bestD){ bestD = dd; goal = {x:dr.x, y:dr.y}; }
+      }
+    }
+    if(!goal){
+      // last resort: drift toward the map centre-ish anchor so nobody idles
+      goal = {x:game.roundAnchor.x, y:game.roundAnchor.y};
+    }
+    const steer = steerAround(c, goal.x, goal.y, dt, {repath:.7});
+    const gl = Math.hypot(steer.x-c.x, steer.y-c.y) || 1;
+    const sp = stat(c).speed*0.85;
+    const beforeX = c.x, beforeY = c.y;
+    c.x = clamp(c.x + (steer.x-c.x)/gl*sp*dt, 17, WORLD_W-17);
+    c.y = clamp(c.y + (steer.y-c.y)/gl*sp*dt, 17, WORLD_H-17);
+    c.r = 15;
+    resolveSolid(c);
+    ensureMoving(c, beforeX, beforeY, dt);
+    c.moving = Math.hypot(c.x-beforeX, c.y-beforeY) > .05;
+    c.legPhase += dt*(c.moving?9:0);
+    if(c.moving) c.angle = Math.atan2(steer.y-c.y, steer.x-c.x);
+    return;
+  }
+
   const state = (c.hp/c.maxHp<.4?'low':'ok')+'|'+(d<100?'near':d<250?'mid':'far')+'|'
     +(!target?'none':target.type==='brute'?'big':'normal')+'|'
     +(c.x<70||c.x>WORLD_W-70||c.y<70||c.y>WORLD_H-70?'edge':'open');
@@ -1652,7 +2321,6 @@ function cloneMove(c,dt){
   if(c.decision <= 0){
     if(c.state !== null){
       const old = qValues(c.state), next = qValues(state);
-      // extra shaping: being pinned to the world edge is never useful
       const edge = c.x < 100 || c.x > WORLD_W-100 || c.y < 100 || c.y > WORLD_H-100;
       old[c.action] += 0.18*(c.reward + 0.85*Math.max(...next) - old[c.action]);
       if(edge) old[c.action] -= 0.02;
@@ -1663,7 +2331,6 @@ function cloneMove(c,dt){
     c.reward = 0;
     c.decision = .4;
   }
-  if(!target) return;
   const dx = (target.x-c.x)/(d||1), dy = (target.y-c.y)/(d||1);
   let vx = 0, vy = 0;
   switch(c.action){
@@ -1673,6 +2340,18 @@ function cloneMove(c,dt){
     case 3: vx = dy; vy = -dx; break;
     case 4: vx = -dx*.55-dy*.8; vy = -dy*.55+dx*.8; break;
   }
+
+  /* Navigation override: if the enemy is behind a wall the Q action is
+     useless, so follow an A* path toward it instead of pushing into stone. */
+  if(blockedAhead(c, target.x, target.y, 16) && d > 60){
+    const steer = steerAround(c, target.x, target.y, dt, {repath:.8});
+    const sl = Math.hypot(steer.x-c.x, steer.y-c.y) || 1;
+    vx = (steer.x-c.x)/sl;
+    vy = (steer.y-c.y)/sl;
+  } else {
+    c.path = null;
+  }
+
   // Keep a little breathing room from the player so bullets stay clear.
   const pd = dist(c, game.player);
   if(pd < 46 && pd > 0){ vx += (c.x-game.player.x)/pd*.6; vy += (c.y-game.player.y)/pd*.6; }
@@ -1685,47 +2364,48 @@ function cloneMove(c,dt){
   c.moving = Math.hypot(vx,vy) > .05;
   c.legPhase += dt*(c.moving?9:0);
 
-  /* --- wall-hugging fix ---------------------------------------------
-     The Q-table happily picks "strafe into the wall" forever, which left
-     clones grinding on the arena edge. Detect that we are not actually
-     moving and steer along the wall (plus a periodic random kick). */
   const beforeX = c.x, beforeY = c.y;
   const prevVx = vx, prevVy = vy;
-
   c.r = 15;
   c.x = clamp(c.x+vx*speed*dt, 17, WORLD_W-17);
   c.y = clamp(c.y+vy*speed*dt, 17, WORLD_H-17);
   resolveSolid(c);
 
-  const moved = Math.hypot(c.x-beforeX, c.y-beforeY);
-  const intended = speed*dt;
-  if(intended > 0.2 && moved < intended*0.35){
-    c.stuck = (c.stuck || 0) + dt;
-    if(c.stuck > 0.25){
-      // slide: bounce the desired direction off the nearest blocking wall
-      c.action = Math.floor(rand(0,5));
-      c.stuck = 0;
-      // push away from the world edge we are pinned against
-      const margin = 120;
-      let ax = 0, ay = 0;
-      if(c.x < margin) ax = 1; else if(c.x > WORLD_W-margin) ax = -1;
-      if(c.y < margin) ay = 1; else if(c.y > WORLD_H-margin) ay = -1;
-      const away = Math.hypot(ax,ay);
-      if(away > 0){
-        const nx = (ax/away - prevVx)*0.5, ny = (ay/away - prevVy)*0.5;
-        c.x = clamp(c.x + nx*90*dt*6, 17, WORLD_W-17);
-        c.y = clamp(c.y + ny*90*dt*6, 17, WORLD_H-17);
-      }
-      // tell the learner this direction was a bad idea
-      const vals = qValues(c.state);
-      if(vals[c.action] !== undefined) vals[c.action] -= .25;
-    }
-  } else {
-    // edge penalty so the table learns to stop choosing wall runs
-    const nearEdge = c.x < 90 || c.x > WORLD_W-90 || c.y < 90 || c.y > WORLD_H-90;
-    c.stuck = nearEdge ? Math.max(0, (c.stuck||0) - dt*0.5) : 0;
+  if(ensureMoving(c, beforeX, beforeY, dt, speed, prevVx, prevVy)){
+    // path following already handles the real steering; only re-roll the
+    // Q action when we were actually relying on it
+    if(!c.path) c.action = Math.floor(rand(0,5));
   }
   c.reward += dt*.04;
+}
+
+/* Shared "am I grinding against something?" recovery, used by clones and
+   every summoned/enemy combatant. */
+function ensureMoving(ent, beforeX, beforeY, dt, speed, vx, vy){
+  const moved = Math.hypot(ent.x-beforeX, ent.y-beforeY);
+  const intended = (speed||60)*dt;
+  if(intended < 0.2) return false;
+  if(moved >= intended*0.35){
+    const nearEdge = ent.x < 90 || ent.x > WORLD_W-90 || ent.y < 90 || ent.y > WORLD_H-90;
+    ent.stuck = nearEdge ? Math.max(0, (ent.stuck||0) - dt*0.5) : 0;
+    return false;
+  }
+  ent.stuck = (ent.stuck || 0) + dt;
+  if(ent.stuck < 0.2) return false;
+  ent.stuck = 0;
+  // try a path around whatever we are jammed on
+  const goal = ent.navGoal || {x:WORLD_W/2, y:WORLD_H/2};
+  const path = findPath(ent.x, ent.y, goal.x, goal.y, 900);
+  if(path && path.length){
+    ent.path = path; ent.pathIdx = 0; ent.navT = 1.0;
+  } else {
+    // nothing found: nudge sideways so we do not sit in the same spot
+    const a = rand(0, TAU);
+    ent.x = clamp(ent.x + Math.cos(a)*34, 17, WORLD_W-17);
+    ent.y = clamp(ent.y + Math.sin(a)*34, 17, WORLD_H-17);
+    resolveSolid(ent);
+  }
+  return true;
 }
 
 /* -------------------------------- tick ---------------------------- */
@@ -1755,6 +2435,11 @@ function tickCooldown(dt){
     const speed = stat(p).speed*(p.dashTime>0?2.7:1)*analog;
     p.moving = Math.abs(dx)+Math.abs(dy) > .05;
     p.legPhase += dt*(p.moving?10:0);
+    if(p.moving){ p.aimAngle = Math.atan2(dy,dx); p.face = dx < -0.01 ? -1 : 1; }
+    else if(p.lastAim !== undefined) p.aimAngle = p.lastAim;
+    else { const [tp] = nearest(p); if(tp) p.aimAngle = Math.atan2(tp.y-p.y, tp.x-p.x); }
+    if(p.lastAim !== undefined || p.aimAngle !== undefined) p.lastAim = p.aimAngle;
+    if(p.swingAnim > 0) p.swingAnim = Math.max(0, p.swingAnim - dt);
     p.x = clamp(p.x+dx*speed*dt, 17, WORLD_W-17);
     p.y = clamp(p.y+dy*speed*dt, 17, WORLD_H-17);
     p.r = 15;
@@ -1930,6 +2615,7 @@ function tick(dt){
       f.r = 15;
       resolveSolid(f, px0, py0);
     }
+    if(f.swingAnim > 0) f.swingAnim = Math.max(0, f.swingAnim - dt);
     const [target] = nearest(f);
     updateWeapons(f,dt,target);
     if(f.clone && target && f.cd.rifle > .05) f.angle = Math.atan2(target.y-f.y, target.x-f.x);
@@ -1950,9 +2636,32 @@ function tick(dt){
       const nd = dist(e,f);
       if(nd < d){ d = nd; target = f; }
     }
+    /* Summoned minions are only loyal to their summoner: once the squad is
+       out of reach they turn on any other enemy, so the battlefield stays
+       chaotic instead of every summon beelining for the player. */
+    if(e.summoned && d > 260){
+      for(const o of game.enemies){
+        if(!o.alive || o === e || o === e.summoner || o.summoned) continue;
+        const od = dist(e,o);
+        if(od < d){ d = od; target = o; }
+      }
+    }
     if(target){
       const sp = e.speed*(e.slow>0?.38:1);
-      let dx = (target.x-e.x)/(d||1), dy = (target.y-e.y)/(d||1);
+      e.navGoal = {x:target.x, y:target.y};
+      let ax = target.x, ay = target.y;
+      /* Wall awareness: if the straight line is blocked, follow an A* path.
+         This is what stops the horde grinding against a facility wall while
+         the player stands inside. */
+      if(blockedAhead(e, target.x, target.y, e.r + 4)){
+        const steer = steerAround(e, target.x, target.y, dt, {repath:1.0});
+        ax = steer.x; ay = steer.y;
+      } else {
+        e.path = null;
+      }
+      let dx = (ax-e.x), dy = (ay-e.y);
+      const al = Math.hypot(dx,dy) || 1;
+      dx /= al; dy /= al;
       // light separation so the horde spreads out instead of stacking
       for(const o of game.enemies){
         if(o === e || !o.alive) continue;
@@ -1964,14 +2673,41 @@ function tick(dt){
         }
       }
       const l = Math.hypot(dx,dy) || 1;
+      const bx = e.x, by = e.y;
       e.x = clamp(e.x + dx/l*sp*dt, 10, WORLD_W-10);
       e.y = clamp(e.y + dy/l*sp*dt, 10, WORLD_H-10);
       resolveSolid(e);
-      if(d < e.r+13 && target.invuln <= 0){
-        hurt(target, e.damage, null);
-        target.invuln = .65;
-        shake = Math.min(shake+1.6, 4);
+      ensureMoving(e, bx, by, dt, sp);
+      e.face = Math.atan2(dy, dx);
+
+      // ---- attack animation: wind up, slam, recover ----
+      const targetIsEnemy = !!target.summoned || game.enemies.includes(target);
+      const reach = e.r + (target.r || 13) + 6;
+      if(d < reach){
+        if(e.atkCd > 0) e.atkCd -= dt;
+        const canHit = (target.invuln === undefined) ? true : target.invuln <= 0;
+        if(e.atkCd <= 0 && canHit){
+          e.swing = 0.34;                  // animation length
+          e.atkCd = 0.85 + Math.random()*0.2;
+        }
+        if(e.swing > 0.24 && e.swing - dt <= 0.24){
+          // impact lands at the end of the wind-up
+          if(targetIsEnemy){
+            /* summoned minions brawl with each other and with the horde */
+            if(target.alive && (target.invuln === undefined || target.invuln <= 0)){
+              hurt(target, e.damage, null);
+              particles(target.x, target.y, '#ffd0a0', 5, .8);
+            }
+          } else if(target.invuln <= 0){
+            hurt(target, e.damage, null);
+            target.invuln = .65;
+            shake = Math.min(shake+1.6, 4);
+            particles(target.x, target.y, '#ffb0a0', 5, .8);
+          }
+        }
       }
+      if(e.swing > 0) e.swing = Math.max(0, e.swing - dt);
+      if(e.atkCd > 0) e.atkCd = Math.max(0, e.atkCd - dt*0.6);
     }
   }
 
@@ -2041,12 +2777,27 @@ function tick(dt){
       const d = dist(m,t);
       if(d > 18){
         const sp = 96 + m.lv*10;
-        m.x = clamp(m.x + (t.x-m.x)/d*sp*dt, 14, WORLD_W-14);
-        m.y = clamp(m.y + (t.y-m.y)/d*sp*dt, 14, WORLD_H-14);
-      } else if(m.attackCd <= 0){
-        hurt(t, m.dmg, m);
-        m.attackCd = .55;
+        m.navGoal = {x:t.x, y:t.y};
+        let ax = t.x, ay = t.y;
+        if(blockedAhead(m, t.x, t.y, (m.r||12) + 4)){
+          const steer = steerAround(m, t.x, t.y, dt, {repath:1.0});
+          ax = steer.x; ay = steer.y;
+        } else { m.path = null; }
+        const dl = Math.hypot(ax-m.x, ay-m.y) || 1;
+        const bx = m.x, by = m.y;
+        m.x = clamp(m.x + (ax-m.x)/dl*sp*dt, 14, WORLD_W-14);
+        m.y = clamp(m.y + (ay-m.y)/dl*sp*dt, 14, WORLD_H-14);
+        resolveSolid(m);
+        ensureMoving(m, bx, by, dt, sp);
+      } else {
+        m.path = null;
+        if(m.attackCd <= 0){
+          hurt(t, m.dmg, m);
+          m.attackCd = .55;
+        }
+        m.swing = .25;
       }
+      if(m.swing > 0) m.swing = Math.max(0, m.swing - dt);
     }
     if(m.life <= 0){ m.alive = false; m.hp = 0; }
   }
@@ -2123,6 +2874,17 @@ function tick(dt){
     b.x += b.vx*dt;
     b.y += b.vy*dt;
     b.life -= dt;
+    /* ricochet rounds bounce off walls instead of dying on them */
+    if(b.bounces > 0 && solidAt(b.x, b.y, 4)){
+      if(solidAt(b.x, b.py, 4)) b.vx = -b.vx;
+      else if(solidAt(b.px, b.y, 4)) b.vy = -b.vy;
+      else { b.vx = -b.vx; b.vy = -b.vy; }
+      b.x = b.px; b.y = b.py;
+      b.bounces--;
+      b.hitList = b.hitList.filter(()=>false);
+      b.life = Math.max(b.life, .3);
+      particles(b.x, b.y, '#bff0c0', 3, .5);
+    }
     if(b.hostile){
       for(const f of fighters){
         if(!f.alive || f.invuln > 0) continue;
@@ -2189,8 +2951,110 @@ function tick(dt){
   game.particles = game.particles.filter(p=>p.life>0);
   for(const t of game.texts){ t.y += t.vy*dt; t.vy *= .93; t.life -= dt; }
   game.texts = game.texts.filter(t=>t.life>0);
-  for(const b of game.beams) b.life -= dt;
+  /* ---- lasers: continuous damage along the ray ---- */
+  for(const b of game.beams){
+    b.life -= dt;
+    if(b.kind !== 'laser') continue;
+    if(b.follow){
+      b.pts[0] = {x:b.follow.x, y:b.follow.y};
+      b.angle = b.follow.aimAngle !== undefined ? b.follow.aimAngle : b.angle;
+    }
+    b.tick -= dt;
+    if(b.tick > 0) continue;
+    b.tick = b.tickRate;
+    const ox = b.pts[0].x, oy = b.pts[0].y;
+    const ex = ox + Math.cos(b.angle)*b.length, ey = oy + Math.sin(b.angle)*b.length;
+    for(const e of game.enemies){
+      if(!e.alive) continue;
+      // distance from the enemy centre to the beam segment
+      const dx = ex-ox, dy = ey-oy;
+      const len2 = dx*dx+dy*dy || 1;
+      let t = ((e.x-ox)*dx + (e.y-oy)*dy)/len2;
+      t = Math.max(0, Math.min(1, t));
+      const px = ox+dx*t, py = oy+dy*t;
+      if(Math.hypot(e.x-px, e.y-py) < b.width*.5 + (e.r||13)){
+        hurt(e, b.damagePerTick, b.owner);
+        particles(e.x,e.y,'#c8f0ff',3,.6);
+      }
+    }
+  }
   game.beams = game.beams.filter(b=>b.life>0);
+
+  /* ---- boomerangs: fly out, come back ---- */
+  for(const bm of (game.boomerangs||[])){
+    if(!bm.alive) continue;
+    bm.spin += dt*18;
+    if(bm.out){
+      bm.x += Math.cos(bm.ang)*bm.speed*dt;
+      bm.y += Math.sin(bm.ang)*bm.speed*dt;
+      bm.speed -= 520*dt;
+      if(bm.speed <= 0) bm.out = false;
+    } else {
+      const o = bm.owner;
+      const d = o && o.alive ? Math.hypot(o.x-bm.x, o.y-bm.y) : 0;
+      if(o && o.alive && d > 22){
+        bm.x += (o.x-bm.x)/d*640*dt;
+        bm.y += (o.y-bm.y)/d*640*dt;
+      } else { bm.alive = false; }
+    }
+    for(const e of game.enemies){
+      if(!e.alive || bm.hitList.includes(e)) continue;
+      if(dist(bm,e) < (e.r||13)+11){
+        hurt(e, bm.dmg, bm.owner);
+        bm.hitList.push(e);
+        if(bm.lv >= 3 && !bm.out){
+          // awakened return trip drags enemies along
+          const d = Math.hypot(bm.x-e.x, bm.y-e.y)||1;
+          e.x += (bm.x-e.x)/d*10; e.y += (bm.y-e.y)/d*10;
+        }
+        particles(e.x,e.y,'#cfd8ff',5,.8);
+      }
+    }
+    if(bm.hitList.length > 12) bm.hitList.shift();
+  }
+  game.boomerangs = (game.boomerangs||[]).filter(b=>b.alive);
+
+  /* ---- flak fragments ---- */
+  for(const sp of game.sparks){
+    if(!sp.alive) continue;
+    sp.x += sp.vx*dt; sp.y += sp.vy*dt;
+    sp.vx *= .96; sp.vy *= .96;
+    sp.life -= dt;
+    if(sp.life <= 0){ sp.alive = false; continue; }
+    for(const e of game.enemies){
+      if(!e.alive) continue;
+      if(dist(sp,e) < (e.r||13)+sp.r){
+        hurt(e, sp.dmg, sp.owner);
+        sp.alive = false;
+        break;
+      }
+    }
+  }
+  game.sparks = game.sparks.filter(s=>s.alive);
+
+  /* ---- turrets ---- */
+  for(const tu of (game.turrets||[])){
+    if(!tu.alive) continue;
+    tu.hit = Math.max(0, tu.hit-dt);
+    tu.life -= dt;
+    if(tu.life <= 0){ tu.alive = false; particles(tu.x,tu.y,'#7e909c',10); continue; }
+    tu.cd -= dt;
+    const [t] = nearest(tu);
+    if(t && tu.cd <= 0 && Math.hypot(t.x-tu.x, t.y-tu.y) <= tu.range){
+      tu.aim = Math.atan2(t.y-tu.y, t.x-tu.x);
+      const sp2 = 620;
+      game.bullets.push({
+        x:tu.x+Math.cos(tu.aim)*14, y:tu.y+Math.sin(tu.aim)*14, px:tu.x, py:tu.y,
+        vx:Math.cos(tu.aim)*sp2, vy:Math.sin(tu.aim)*sp2,
+        life:tu.range/sp2, maxLife:tu.range/sp2,
+        damage:tu.dmg*stat(tu.owner).damage, owner:tu.owner || tu, r:3.6,
+        pierce:0, hitList:[], color:'#ffe9a3'
+      });
+      tu.cd = tu.rate;
+      particles(tu.x+Math.cos(tu.aim)*16, tu.y+Math.sin(tu.aim)*16, '#ffe9a3', 3, .6);
+    }
+  }
+  game.turrets = (game.turrets||[]).filter(t=>t.alive);
   for(const r of game.rings){ r.life -= dt; r.r += (r.maxR-r.r)*dt*9; }
   game.rings = game.rings.filter(r=>r.life>0);
 
@@ -2242,9 +3106,10 @@ const GLOW = {
   purple:glowSprite('rgba(190,170,255,.9)')
 };
 function glow(img,x,y,size,alpha){
-  ctx.globalAlpha = alpha;
+  const prev = ctx.globalAlpha;
+  ctx.globalAlpha = alpha * prev;
   ctx.drawImage(img, x-size/2, y-size/2, size, size);
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = prev;
 }
 function rrect(g,x,y,w,h,r){
   r = Math.min(r, w/2, h/2);
@@ -2565,36 +3430,307 @@ function drawWallWithGap(x, y, w, h, gapCentre, gapWidth, horizontal){
 }
 
 /* ----------------------------- fighters --------------------------- */
+/* ================================================================== *
+ *  PIXEL ART — hand authored sprites, no geometric stand-ins        *
+ * ================================================================== *
+ *  Each sprite is a pixel map. Characters are palette keys, '.' is
+ *  transparent. Sprites are baked once into offscreen canvases and
+ *  blitted with smoothing off, which gives a crisp, deliberate look
+ *  instead of stacked ellipses.
+ */
+const PIX = {
+  '_': 'rgba(0,0,0,0)',
+  'k': '#131b16',   // outline
+  'K': '#0a100c',   // deep outline
+  'w': '#f4fbff',
+  'W': '#d3e2ea',
+  'g': '#8fae9a',
+  'G': '#5d7568',
+  'd': '#3a4a40',
+  // player greens
+  'p': '#c9f186', 'P': '#9ac95f', 'q': '#6d9744', 'Q': '#46612d',
+  // clone ambers
+  'a': '#ffd08a', 'A': '#e8a95e', 'b': '#b87b3c', 'B': '#7d4f28',
+  // enemy reds
+  'r': '#f2987f', 'R': '#cf6a52', 's': '#9c4535', 'S': '#6b2a21',
+  // metal / accents
+  'm': '#b9c7d1', 'M': '#7e909c', 'n': '#4d5b66',
+  'y': '#ffe9a3', 'Y': '#f2c85c',
+  'c': '#a8e8ff', 'C': '#5fb8dd',
+  'v': '#d5c4ff', 'V': '#9c85e0',
+  'o': '#ffb066', 'O': '#e07a3f'
+};
+
+function bakeSprite(rows, pal){
+  const h = rows.length;
+  const w = Math.max(...rows.map(r=>r.length));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const img = g.createImageData(w, h);
+  for(let y=0;y<h;y++){
+    const row = rows[y];
+    for(let x=0;x<w;x++){
+      const ch = row[x] || '.';
+      if(ch === '.' || ch === ' ') continue;
+      const col = (pal && pal[ch]) || PIX[ch];
+      if(!col) continue;
+      const hex = col.replace('#','');
+      const i = (y*w + x)*4;
+      img.data[i]   = parseInt(hex.substr(0,2),16);
+      img.data[i+1] = parseInt(hex.substr(2,2),16);
+      img.data[i+2] = parseInt(hex.substr(4,2),16);
+      img.data[i+3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+/* ---------- player / clone: armoured survivor, 3 poses ---------- */
+const SPR = {};
+
+SPR.playerIdle = [
+  '.....kkkkkk.....',
+  '....kppppppk....',
+  '...kpppppppppk..',
+  '...kpPpppppPpk..',
+  '...kpwkywykwpk..',
+  '...kpkwwwwwkpk..',
+  '...kppkkkkkppk..',
+  '....kpppppppk...',
+  '.....kGGGGGk....',
+  '....kGmmmmmGk...',
+  '...kGmmMMMmmGk..',
+  '...kGmMMMMMmGk..',
+  '....kGmmmmmGk...',
+  '.....kGGGGGk....',
+  '....kqqk.kqqk...',
+  '....kQQk.kQQk...'
+];
+SPR.playerWalk = [
+  '.....kkkkkk.....',
+  '....kppppppk....',
+  '...kpppppppppk..',
+  '...kpPpppppPpk..',
+  '...kpwkywykwpk..',
+  '...kpkwwwwwkpk..',
+  '...kppkkkkkppk..',
+  '....kpppppppk...',
+  '.....kGGGGGk....',
+  '....kGmmmmmGk...',
+  '...kGmmMMMmmGk..',
+  '...kGmMMMMMmGk..',
+  '....kGmmmmmGk...',
+  '.....kGGGGGk....',
+  '...kqqk...kqqk..',
+  '..kQQk.....kQQk.'
+];
+SPR.playerAttack = [
+  '.....kkkkkk.....',
+  '....kppppppk....',
+  '...kpppppppppk..',
+  '...kpPpppppPpk..',
+  '...kpwkywykwpk..',
+  '...kpkwwwwwkpk..',
+  '...kppkkkkkppk..',
+  '....kpppppppk...',
+  '.....kGGGGGk....',
+  '..kkGmmmmmGkk...',
+  '.kmmmmMMMmmmmk..',
+  '..kkGMMMMMmGk...',
+  '....kGmmmmmGk...',
+  '.....kGGGGGk....',
+  '....kqqk.kqqk...',
+  '....kQQk.kQQk...'
+];
+
+/* ---------- grunt: squat jelly with legs ---------- */
+SPR.gruntIdle = [
+  '......kkkk......',
+  '....kkrrrrkk....',
+  '...krrrrrrrrk...',
+  '..krrwrrrrwrrk..',
+  '..krwwkrrkwwrk..',
+  '..krwkkrrkkwrk..',
+  '..krrrrrrrrrrk..',
+  '..krRsrrrrRsrk..',
+  '...krrSSSSrrk...',
+  '....kkrrrrkk....',
+  '.....kRkkRk.....',
+  '.....kSk.kSk....'
+];
+SPR.gruntWalk = [
+  '......kkkk......',
+  '....kkrrrrkk....',
+  '...krrrrrrrrk...',
+  '..krrwrrrrwrrk..',
+  '..krwwkrrkwwrk..',
+  '..krwkkrrkkwrk..',
+  '..krrrrrrrrrrk..',
+  '..krRsrrrrRsrk..',
+  '...krrSSSSrrk...',
+  '....kkrrrrkk....',
+  '....kRk..kRk....',
+  '...kSk....kSk...'
+];
+
+/* ---------- runner: lean and fast ---------- */
+SPR.runnerIdle = [
+  '.....kkkkk......',
+  '....krrrrrk.....',
+  '...krwrrwrrk....',
+  '...krkrrkrrk....',
+  '...krrrrrrrk....',
+  '....krsssrk.....',
+  '.....kkkkk......',
+  '....kRk.kRk.....',
+  '...kSk...kSk....',
+  '..kSk.....kSk...'
+];
+SPR.runnerWalk = [
+  '.....kkkkk......',
+  '....krrrrrk.....',
+  '...krwrrwrrk....',
+  '...krkrrkrrk....',
+  '...krrrrrrrk....',
+  '....krsssrk.....',
+  '.....kkkkk......',
+  '...kRk...kRk....',
+  '..kSk......kSk..',
+  '.kSk........kSk.'
+];
+
+/* ---------- brute: heavy, plated ---------- */
+SPR.bruteIdle = [
+  '.......kkkkkk.......',
+  '.....kkrrrrrrkk.....',
+  '....krrrrrrrrrrk....',
+  '...krrwrrrrrrwrrk...',
+  '...krrwwkrrkwwrrk...',
+  '...krrwkkrrkkwrrk...',
+  '...krrrrrrrrrrrrk...',
+  '..kkrrRssrrssRrrkk..',
+  '.kMMkrrrSSSSrrrkMMk.',
+  '.kmmkrrrrrrrrrrkmmk.',
+  '..kkkrrrrrrrrrrkkk..',
+  '....kkrrrrrrrrkk....',
+  '.....kRRkkkkRRk.....',
+  '.....kSSk..kSSk.....',
+  '....kSSk....kSSk....'
+];
+
+/* ---------- boss: armoured core with a heavy shell ---------- */
+SPR.bossIdle = [
+  '........kkkkkkkk........',
+  '......kkRRRRRRRRkk......',
+  '.....kRRRRRRRRRRRRk.....',
+  '....kRRkkkkkkkkkkRRk....',
+  '...kRRkSSSSSSSSSSkRRk...',
+  '...kRkSSrrrrrrrrSSkRk...',
+  '..kRRkSrrwwwwwwrrSkRRk..',
+  '..kRkSrrwwkkkkwwrrSkRk..',
+  '..kRkSrwkkyyyykkwrSkRk..',
+  '..kRRkSrwkkyyyykkwrSkRRk',
+  '..kRkSrrwwkkkkwwrrSkRk..',
+  '..kRRkSrrwwwwwwrrSkRRk..',
+  '...kRkSSrrrrrrrrSSkRk...',
+  '...kRRkSSSSSSSSSSkRRk...',
+  '....kRRkkkkkkkkkkRRk....',
+  '.....kRRRRRRRRRRRRk.....',
+  '......kkRRRRRRRRkk......',
+  '....kkk..kkkkkk..kkk....',
+  '...kMMk..........kMMk...',
+  '...kkkk..........kkkk...'
+];
+
+/* ---------- summoned ally: small drone ---------- */
+SPR.drone = [
+  '..kkkkkk..',
+  '.kmMMMMmk.',
+  'kmMccccMmk',
+  'kMccwwccMk',
+  'kMccwwccMk',
+  'kmMccccMmk',
+  '.kmMMMMmk.',
+  '..kkkkkk..'
+];
+
+/* ---------- wisp: floating spark ---------- */
+SPR.wisp = [
+  '...kkkk...',
+  '..kvvvvk..',
+  '.kvVvvVvk.',
+  'kvVvwwvVvk',
+  'kvVvwwvVvk',
+  '.kvVvvVvk.',
+  '..kvvvvk..',
+  '...kkkk...'
+];
+
+/* bake lazily on first draw so the sheet costs nothing at load */
+const BAKED = {};
+function sprite(name, pal){
+  const key = name + (pal ? JSON.stringify(pal) : '');
+  if(!BAKED[key]){
+    const rows = SPR[name];
+    if(!rows) return null;
+    BAKED[key] = bakeSprite(rows, pal);
+  }
+  return BAKED[key];
+}
+
+/* draw a baked sprite centred at (0,0) in the current transform */
+function blit(img, px, py, scale, flip, alphaScale){
+  if(!img) return;
+  const w = img.width*scale, h = img.height*scale;
+  ctx.save();
+  if(alphaScale !== undefined && alphaScale !== 1) ctx.globalAlpha *= alphaScale;
+  ctx.imageSmoothingEnabled = false;
+  if(flip){ ctx.translate(px, py); ctx.scale(-1,1); ctx.drawImage(img, -w/2, -h/2, w, h); }
+  else ctx.drawImage(img, px-w/2, py-h/2, w, h);
+  ctx.restore();
+}
+
+/* recolour a baked sprite (used to give clones a different palette) */
+function tintSprite(img, tint){
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d');
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = tint;
+  g.globalAlpha = 0.55;
+  g.fillRect(0,0,c.width,c.height);
+  return c;
+}
+
 function drawFighter(f,t){
   if(!f.alive) return;
   const isPlayer = !f.clone;
-  const main = isPlayer ? '#c6f283' : '#ffbe7a';
-  const mid  = isPlayer ? '#8fc95f' : '#d98f52';
-  const dark = isPlayer ? '#4a6338' : '#7d4f31';
-  const rim  = isPlayer ? '#eaffc4' : '#ffe2bd';
   const glowName = isPlayer ? 'lime' : 'amber';
-  const bob = Math.sin(t*3.4 + f.bob)*1.1;
-  const step = f.moving ? Math.sin(f.legPhase) : 0;
+  const bob = Math.sin(t*3.4 + (f.bob||0))*1.0;
   const awake = Object.values(f.weapons).some(v=>v>=3) || Object.values(f.upgrades).some(v=>v>=3);
-  const outline = 'rgba(9,18,13,.72)';
 
   ctx.save();
   ctx.translate(f.x, f.y);
 
-  ctx.fillStyle = 'rgba(5,12,8,.45)';
+  // soft ground shadow
+  ctx.fillStyle = 'rgba(5,12,8,.42)';
   ctx.beginPath();
-  ctx.ellipse(0, 17, 16, 6, 0, 0, TAU);
+  ctx.ellipse(0, 16, 13, 5, 0, 0, TAU);
   ctx.fill();
 
-  if(awake) glow(GLOW[glowName], 0, 0, 96, .16 + Math.sin(t*4)*.05);
-  glow(GLOW[glowName], 0, 0, 52, .11);
+  if(awake) glow(GLOW[glowName], 0, 0, 92, .15 + Math.sin(t*4)*.05);
+  glow(GLOW[glowName], 0, 0, 46, .10);
 
+  // orbiting blades
   for(const b of (f.blades||[])){
     const x = b.x-f.x, y = b.y-f.y;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(b.a + t*9);
-    glow(GLOW.blue, 0, 0, 44, .6);
+    glow(GLOW.blue, 0, 0, 40, .55);
     ctx.fillStyle = '#f2feff';
     ctx.strokeStyle = 'rgba(140,220,245,.9)';
     ctx.lineWidth = 1.2;
@@ -2608,263 +3744,142 @@ function drawFighter(f,t){
 
   if(f.invuln > 0 && Math.floor(t*20)%2 === 0) ctx.globalAlpha = .55;
 
-  // legs
-  ctx.strokeStyle = dark;
-  ctx.lineWidth = 5.5;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-4.5, 7); ctx.lineTo(-4.5 + step*4.5, 15.5);
-  ctx.moveTo(4.5, 7);  ctx.lineTo(4.5 - step*4.5, 15.5);
-  ctx.stroke();
+  // pick the pose: attacking > walking > idle
+  const swing = f.swingAnim > 0;
+  const pose = swing ? 'playerAttack' : (f.moving ? 'playerWalk' : 'playerIdle');
+  let img = sprite(pose);
+  if(!isPlayer){
+    // clones share the survivor silhouette but read as amber allies
+    img = cloneSprite(pose);
+  }
 
-  // backpack fin
-  ctx.fillStyle = dark;
-  ctx.beginPath();
-  ctx.moveTo(-7, -2+bob); ctx.lineTo(-13, 4+bob); ctx.lineTo(-6, 6+bob);
-  ctx.closePath();
-  ctx.fill();
+  const flip = (f.face || (f.aimAngle !== undefined ? Math.cos(f.aimAngle) : 1)) < 0
+             || (f.lastDX !== undefined && f.lastDX < 0);
+  const sc = 2.1;
+  blit(img, 0, bob - 4, sc, flip);
 
-  // torso
-  const g1 = ctx.createLinearGradient(0,-12,0,10);
-  g1.addColorStop(0, mid);
-  g1.addColorStop(.55, main);
-  g1.addColorStop(1, dark);
-  ctx.fillStyle = f.hit > .02 ? '#ffffff' : g1;
-  ctx.beginPath();
-  ctx.moveTo(-9.5,-9+bob);
-  ctx.quadraticCurveTo(0,-13+bob, 9.5,-9+bob);
-  ctx.quadraticCurveTo(12,0+bob, 8.5,9+bob);
-  ctx.quadraticCurveTo(0,12.5+bob, -8.5,9+bob);
-  ctx.quadraticCurveTo(-12,0+bob, -9.5,-9+bob);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
+  // weapon arm overlay so the kit reads at a glance
+  drawFighterArm(f, t, swing, awake);
 
-  // chest core
-  glow(GLOW[glowName], 0, -1+bob, 22, .55);
-  ctx.fillStyle = 'rgba(255,255,255,.92)';
-  ctx.beginPath();
-  ctx.arc(0, -1+bob, 2.1, 0, TAU);
-  ctx.fill();
+  ctx.restore();
+}
 
-  // shoulders
-  ctx.fillStyle = dark;
-  ctx.beginPath();
-  ctx.arc(-9, -7+bob, 3.6, 0, TAU);
-  ctx.arc(9, -7+bob, 3.6, 0, TAU);
-  ctx.fill();
+/* amber-shifted variants of the survivor poses (baked once) */
+const CLONE_SPR = {};
+function cloneSprite(pose){
+  if(!CLONE_SPR[pose]){
+    const base = sprite(pose);
+    if(!base) return null;
+    const pal = {p:PIX.a, P:PIX.A, q:PIX.b, Q:PIX.B};
+    const rows = SPR[pose].map(r=>r.split('').map(ch=>pal[ch]||ch).join(''));
+    CLONE_SPR[pose] = bakeSprite(rows, null);
+  }
+  return CLONE_SPR[pose];
+}
 
-  // neck
-  ctx.fillStyle = 'rgba(9,18,13,.55)';
-  ctx.fillRect(-4, -14+bob, 8, 5);
-
-  // head
-  ctx.fillStyle = f.hit > .02 ? '#ffffff' : main;
-  ctx.beginPath();
-  ctx.ellipse(0, -18+bob, 8.6, 8, 0, 0, TAU);
-  ctx.fill();
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(10,22,15,.22)';
-  ctx.beginPath();
-  ctx.ellipse(0, -21.5+bob, 8.2, 4.2, 0, Math.PI, TAU);
-  ctx.fill();
-
-  // visor
-  const vx = Math.cos(f.angle)*1.8, vy = Math.sin(f.angle)*1.2;
-  ctx.fillStyle = isPlayer ? '#e8ffc4' : '#ffe9cc';
-  ctx.shadowColor = isPlayer ? '#c9ff9a' : '#ffca86';
-  ctx.shadowBlur = 10;
-  rrect(ctx, -6.5+vx, -19.5+bob+vy, 13, 3.8, 1.9);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // antenna
-  ctx.strokeStyle = rim;
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(6, -24+bob); ctx.lineTo(8.5, -31+bob);
-  ctx.stroke();
-  glow(GLOW.white, 8.5, -31.5+bob, 11, .85);
-
-  // weapon arm
+/* the currently held weapon, drawn over the sprite */
+function drawFighterArm(f, t, swing, awake){
+  const aim = f.aimAngle !== undefined ? f.aimAngle : (f.face||0);
+  const lift = swing ? Math.sin(Math.min(1, 1-(f.swingAnim||0)/0.28)*Math.PI)*5 : 0;
   ctx.save();
-  ctx.rotate(f.angle);
-  const shotgun = (f.weapons.shotgun||0) > 0;
-  ctx.strokeStyle = dark;
-  ctx.lineWidth = 4.5;
-  ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(4, 3); ctx.lineTo(13, 3.5); ctx.stroke();
-  const gl = ctx.createLinearGradient(0,-4,0,5);
-  gl.addColorStop(0,'#a7c0b0');
-  gl.addColorStop(.45,'#6d8878');
-  gl.addColorStop(1,'#2b3a32');
-  ctx.fillStyle = gl;
+  ctx.rotate(aim);
+  ctx.translate(8, -1 - lift);
+  const g = ctx.createLinearGradient(0,-2,22,2);
+  g.addColorStop(0, '#8d9aa4'); g.addColorStop(1, '#e6f2f8');
+  ctx.fillStyle = g;
+  ctx.strokeStyle = '#131b16';
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  if(shotgun) rrect(ctx, 11, -4.2, 19, 8.4, 2.4);
-  else rrect(ctx, 11, -2.8, 22, 5.6, 2.2);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(9,18,13,.8)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = '#c3d6c6';
-  rrect(ctx, 11, shotgun?-4.2:-2.8, 6, shotgun?8.4:5.6, 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  rrect(ctx, 12.5, shotgun?-3.4:-2, 14, 1.4, .7);
-  ctx.fill();
-  if(f.muzzle > 0){
-    const k = clamp(f.muzzle/.16,0,1);
-    glow(GLOW.white, 34, 0, 44*k, .95);
-    glow(GLOW[glowName], 32, 0, 62*k, .5);
+  ctx.moveTo(0,-2.6); ctx.lineTo(19,-1.6); ctx.lineTo(21,0); ctx.lineTo(19,1.6); ctx.lineTo(0,2.6);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  if(swing){
+    glow(GLOW.amber, 21, 0, 30, .5);
   }
   ctx.restore();
-
-  if(f.cast > 0){
-    ctx.strokeStyle = isPlayer ? 'rgba(190,255,150,.75)' : 'rgba(255,205,150,.75)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 22 + (1-clamp(f.cast/.3,0,1))*20, 0, TAU);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 9px "Space Grotesk", monospace';
-  ctx.fillStyle = isPlayer ? 'rgba(222,255,192,.9)' : 'rgba(255,216,178,.9)';
-  ctx.fillText(isPlayer ? 'YOU' : 'CLONE', f.x, f.y-40);
-  if(f.clone){
-    const w = 32;
-    ctx.fillStyle = 'rgba(8,14,10,.75)';
-    rrect(ctx, f.x-w/2, f.y+21, w, 3.6, 1.8); ctx.fill();
-    ctx.fillStyle = '#ffbe7a';
-    rrect(ctx, f.x-w/2, f.y+21, w*Math.max(0,f.hp)/f.maxHp, 3.6, 1.8); ctx.fill();
-  }
 }
 
 /* ------------------------------ enemies --------------------------- */
 function drawEnemy(e,t){
-  const bob = Math.sin(t*5+e.seed)*1.6;
-  const wob = Math.sin(t*4.4+e.wob);
+  const bob = Math.sin(t*4.2+e.seed)*1.3;
   ctx.save();
   ctx.translate(e.x, e.y);
 
-  ctx.fillStyle = 'rgba(6,12,10,.4)';
+  // ground shadow scaled to the body
+  ctx.fillStyle = 'rgba(6,12,10,.42)';
   ctx.beginPath();
-  ctx.ellipse(0, e.r*.95, e.r*1.1, e.r*.34, 0, 0, TAU);
+  ctx.ellipse(0, e.r*.92, e.r*.95, e.r*.3, 0, 0, TAU);
   ctx.fill();
 
-  glow(GLOW.red, 0, 0, e.r*4.2, e.slow>0?.28:.16);
+  if(e.slow > 0) glow(GLOW.blue, 0, 0, e.r*4.2, .24);
+  else glow(GLOW.red, 0, 0, e.r*4.0, .13);
 
-  const body = e.hit > 0 ? '#ffffff' : e.type==='brute' ? '#e07d63' : e.type==='runner' ? '#f09a7f' : '#ef9f86';
-  const shade = e.type==='brute' ? '#96442f' : '#b8624a';
-  const shine = e.type==='brute' ? '#ffc0a4' : '#ffd0ba';
+  /* ---- attack animation ----
+     0.34 -> 0.24 is the wind-up (body pulls back, grows, eye flares),
+     0.24 -> 0 is the strike + recovery (body lunges forward).       */
+  const sw = e.swing || 0;
+  const wind = sw > 0.24 ? (0.34-sw)/0.10 : 0;      // 0..1
+  const strike = (sw > 0 && sw <= 0.24) ? 1-(sw/0.24) : 0; // 1..0
+  const lunge = strike > 0 ? Math.sin(strike*Math.PI)*7 : -wind*3;
+  const puff  = 1 + wind*0.13 - strike*0.09;
+  const flash = wind > 0.55;
 
-  // gelatinous body
-  const eg = ctx.createRadialGradient(-e.r*.3, -e.r*.45+bob, e.r*.15, 0, bob, e.r*1.15);
-  eg.addColorStop(0, body);
-  eg.addColorStop(.62, body);
-  eg.addColorStop(1, shade);
-  ctx.fillStyle = body;
-  ctx.beginPath();
-  ctx.ellipse(wob*.9, bob, e.r*(1+wob*.06), e.r*.9, 0, 0, TAU);
-  ctx.fillStyle = eg;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(74,28,22,.45)';
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
-  // glossy highlight
-  ctx.fillStyle = 'rgba(255,255,255,.35)';
-  ctx.beginPath();
-  ctx.ellipse(-e.r*.34, -e.r*.45+bob, e.r*.32, e.r*.18, -.5, 0, TAU);
-  ctx.fill();
-  // underbelly
-  ctx.fillStyle = shade;
-  ctx.beginPath();
-  ctx.ellipse(wob*.9, bob+e.r*.46, e.r*.78, e.r*.24, 0, 0, TAU);
-  ctx.fill();
+  const pose = e.moving || e.type === 'runner' ? 'Walk' : 'Idle';
+  let name;
+  if(e.type === 'brute') name = 'bruteIdle';
+  else if(e.type === 'runner') name = 'runner' + pose;
+  else name = 'grunt' + pose;
+  let img = sprite(name);
 
-  if(e.type === 'brute'){
-    ctx.fillStyle = 'rgba(90,40,34,.55)';
-    for(let i=0;i<7;i++){
-      const a = Math.PI + i*(Math.PI/6) + Math.sin(t*3+i)*.06;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a)*e.r*.8, Math.sin(a)*e.r*.7+bob);
-      ctx.lineTo(Math.cos(a)*e.r*1.5, Math.sin(a)*e.r*1.35+bob);
-      ctx.lineTo(Math.cos(a+.24)*e.r*.85, Math.sin(a+.24)*e.r*.75+bob);
-      ctx.closePath();
-      ctx.fill();
-    }
-    // armour plates
-    ctx.strokeStyle = 'rgba(60,28,24,.5)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, bob, e.r*.72, .2, Math.PI-.2);
-    ctx.stroke();
+  const flip = (e.face || 0) < 0;
+  const sc = e.type === 'brute' ? (e.r*2.15)/16 : (e.r*2.1)/12;
+  const dirx = e.navGoal ? Math.sign(e.navGoal.x - e.x) : 1;
+
+  ctx.save();
+  ctx.translate(dirx*lunge*0.9, bob - 2 + (wind>0? -wind*2 : 0));
+  ctx.scale(puff, puff);
+  if(flash){
+    // charge-up rim before the blow lands
+    glow(GLOW.orange, 0, 0, e.r*3.4, wind*0.35);
   }
-  if(e.type === 'runner'){
-    ctx.strokeStyle = 'rgba(255,190,160,.28)';
-    ctx.lineWidth = 2;
-    for(let i=1;i<=3;i++){
-      ctx.beginPath();
-      ctx.arc(0, bob, e.r + i*4, Math.PI*.15, Math.PI*.85);
-      ctx.stroke();
-    }
+  blit(img, 0, 0, sc, (e.face||0)<0, 1);
+  ctx.restore();
+
+  // hit flash
+  if(e.hit > 0){
+    ctx.globalAlpha = Math.min(.6, e.hit*2.2);
+    ctx.globalCompositeOperation = 'lighter';
+    blit(img, dirx*lunge*0.9, bob-2, sc, (e.face||0)<0, 1);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
 
-  // eyes: glow + white sclera + small dark pupil
-  const eye = e.slow>0 ? GLOW.blue : GLOW.white;
-  glow(eye, -e.r*.33, -4+bob, e.r*1.6, .6);
-  glow(eye,  e.r*.33, -4+bob, e.r*1.6, .6);
-  ctx.fillStyle = e.slow>0 ? '#dff4ff' : '#fff3ea';
-  ctx.beginPath();
-  ctx.ellipse(-e.r*.33, -4+bob, e.r*.24, e.r*.26, 0, 0, TAU);
-  ctx.ellipse( e.r*.33, -4+bob, e.r*.24, e.r*.26, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = e.slow>0 ? '#3b6e8c' : '#4a1f18';
-  ctx.beginPath();
-  ctx.arc(-e.r*.31, -3.4+bob, e.r*.11, 0, TAU);
-  ctx.arc( e.r*.33, -3.4+bob, e.r*.11, 0, TAU);
-  ctx.fill();
-  // brow
-  ctx.strokeStyle = 'rgba(80,30,24,.55)';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(-e.r*.55, -e.r*.45+bob); ctx.lineTo(-e.r*.16, -e.r*.3+bob);
-  ctx.moveTo(e.r*.55, -e.r*.45+bob);  ctx.lineTo(e.r*.16, -e.r*.3+bob);
-  ctx.stroke();
-  // mouth
-  ctx.strokeStyle = 'rgba(74,20,16,.55)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(0, e.r*.2+bob, e.r*.28, .25*Math.PI, .75*Math.PI);
-  ctx.stroke();
-
-  // frozen shell
+  // frozen crust
   if(e.slow > 0){
-    ctx.strokeStyle = 'rgba(170,230,255,.55)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, bob, e.r*1.1, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(170,230,255,.5)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0, bob, e.r*1.15, 0, TAU); ctx.stroke();
+  }
+
+  // telegraph ring right before the strike lands
+  if(sw > 0 && sw <= 0.24){
+    const p = 1-(sw/0.24);
+    ctx.strokeStyle = `rgba(255,150,110,${(1-p)*0.8})`;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(0, 0, e.r + 4 + p*16, 0, TAU); ctx.stroke();
   }
   ctx.restore();
 
   if(e.elite){
-    // elite aura + crown
-    glow(GLOW.amber, e.x, e.y, e.r*4.6, .3 + Math.sin(t*5+e.seed)*.08);
+    glow(GLOW.amber, e.x, e.y, e.r*4.6, .28 + Math.sin(t*5+e.seed)*.08);
     ctx.save();
-    ctx.translate(e.x, e.y - e.r - 9 + Math.sin(t*4+e.seed)*2);
+    ctx.translate(e.x, e.y - e.r - 10 + Math.sin(t*4+e.seed)*2);
     ctx.fillStyle = '#ffd39a';
     ctx.beginPath();
     ctx.moveTo(-7, 4); ctx.lineTo(-7, -2); ctx.lineTo(-3.5, 1); ctx.lineTo(0, -4);
     ctx.lineTo(3.5, 1); ctx.lineTo(7, -2); ctx.lineTo(7, 4);
-    ctx.closePath();
-    ctx.fill();
+    ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(90,60,20,.8)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    ctx.lineWidth = 1; ctx.stroke();
     ctx.restore();
   }
   if((e.hp < e.maxHp && e.type === 'brute') || e.elite){
@@ -2940,62 +3955,39 @@ function drawBoss(e,t){
     ctx.restore();
   }
 
-  // spikes
-  const spikes = 9;
-  for(let i=0;i<spikes;i++){
-    const a = i*TAU/spikes + t*.15;
-    const inner = e.r*.92, outer = e.r*(1.35 + Math.sin(t*4+i)*.06);
-    ctx.fillStyle = 'rgba(70,22,20,.85)';
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a-.14)*inner, Math.sin(a-.14)*inner);
-    ctx.lineTo(Math.cos(a)*outer, Math.sin(a)*outer);
-    ctx.lineTo(Math.cos(a+.14)*inner, Math.sin(a+.14)*inner);
-    ctx.closePath(); ctx.fill();
+  // armoured shell: hand-authored sprite, scrunched during a wind-up
+  const bsw = e.swing || 0;
+  const bwind = bsw > 0.24 ? (0.34-bsw)/0.10 : 0;
+  const bstrike = (bsw > 0 && bsw <= 0.24) ? 1-(bsw/0.24) : 0;
+  const bpuff = 1 + bwind*0.09 - bstrike*0.06;
+  const bossImg = sprite('bossIdle');
+  ctx.save();
+  ctx.scale(bpuff, bpuff);
+  blit(bossImg, 0, bob-3, (e.r*2.35)/20, false, 1);
+  if(e.hit > 0){
+    ctx.globalAlpha = Math.min(.55, e.hit*2);
+    ctx.globalCompositeOperation = 'lighter';
+    blit(bossImg, 0, bob-3, (e.r*2.35)/20, false, 1);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
+  ctx.restore();
 
-  // core body
-  const bg = ctx.createRadialGradient(-e.r*.3, -e.r*.4+bob, e.r*.2, 0, bob, e.r*1.25);
-  bg.addColorStop(0,'#e88c6e');
-  bg.addColorStop(.45,'#b9472f');
-  bg.addColorStop(1,'#4d1a15');
-  ctx.fillStyle = e.hit > 0 ? '#ffffff' : bg;
-  ctx.beginPath();
-  ctx.ellipse(0, bob, e.r, e.r*.92, 0, 0, TAU);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(40,10,8,.8)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // armour plating
-  ctx.strokeStyle = 'rgba(60,18,14,.55)';
-  ctx.lineWidth = 2.4;
-  for(let i=0;i<3;i++){
-    ctx.beginPath();
-    ctx.arc(0, bob, e.r*(.4+i*.22), Math.PI*.15, Math.PI*.85);
-    ctx.stroke();
-  }
-
-  // glowing eye cluster
-  glow(GLOW.white, 0, -e.r*.25+bob, e.r*1.3*pulse, .95);
-  ctx.fillStyle = '#fff6ea';
-  ctx.beginPath();
-  ctx.ellipse(0, -e.r*.22+bob, e.r*.34, e.r*.13, 0, 0, TAU);
-  ctx.fill();
+  // glowing eye core, flares on the wind-up
+  glow(GLOW.white, 0, -e.r*.1+bob, e.r*1.3*pulse*(1+bwind), .8 + bwind*.2);
+  glow(GLOW.red, 0, -e.r*.1+bob, e.r*1.9, .3 + bwind*.45);
   ctx.fillStyle = '#e0341c';
   ctx.beginPath();
-  ctx.arc(0, -e.r*.22+bob, e.r*.09*pulse, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.9)';
-  ctx.beginPath();
-  ctx.arc(-e.r*.05, -e.r*.28+bob, e.r*.05, 0, TAU);
+  ctx.arc(0, -e.r*.1+bob, e.r*.11*pulse, 0, TAU);
   ctx.fill();
 
-  // mouth
-  ctx.strokeStyle = 'rgba(50,12,10,.75)';
-  ctx.lineWidth = 2.6;
-  ctx.beginPath();
-  ctx.arc(0, e.r*.28+bob, e.r*.36, .15*Math.PI, .85*Math.PI);
-  ctx.stroke();
+  // slam shockwave as the strike lands
+  if(bstrike > 0){
+    const p = 1-bstrike;
+    ctx.strokeStyle = `rgba(255,120,90,${(1-p)*.7})`;
+    ctx.lineWidth = 4*(1-p)+1;
+    ctx.beginPath(); ctx.arc(0, 0, e.r*(1.1+p*0.9), 0, TAU); ctx.stroke();
+  }
 
   // charge telegraph
   if(e.charging > 0){
@@ -3274,8 +4266,62 @@ function drawHazard(h,t){
     }
   }
   ctx.restore();
+  // ---- extended hazard visuals ----
+  if(h.kind === 'flakshell'){
+    const pr = 1 + Math.sin(t*22)*.14;
+    glow(GLOW.amber, 0, 0, h.r*1.4, .5);
+    ctx.strokeStyle = `rgba(255,176,102,${.35+.3*pr})`;
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([4,6]);
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.55, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd7a0';
+    ctx.beginPath(); ctx.arc(0, 0, 4*pr, 0, TAU); ctx.fill();
+  } else if(h.kind === 'holy'){
+    const p = clamp(h.life/h.maxLife, 0, 1);
+    glow(GLOW.white, 0, 0, h.r*3.2, .55);
+    const grd = ctx.createLinearGradient(0, -420, 0, 40);
+    grd.addColorStop(0, 'rgba(255,255,235,0)');
+    grd.addColorStop(.55, `rgba(255,244,190,${.55*p})`);
+    grd.addColorStop(1, `rgba(255,255,235,${.85*p})`);
+    ctx.fillStyle = grd;
+    const wdt = h.r*.42;
+    ctx.beginPath();
+    ctx.moveTo(-wdt, 0); ctx.lineTo(wdt, 0);
+    ctx.lineTo(wdt*1.5, -420); ctx.lineTo(-wdt*1.5, -420);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = `rgba(255,255,255,${.8*p})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.8, 0, TAU); ctx.stroke();
+  } else if(h.kind === 'vortex'){
+    const p = clamp(h.life/h.maxLife, 0, 1);
+    for(let i=0;i<3;i++){
+      const rr = h.r*(.28+i*.24) * (1 - (t*.25+i*.2)%1*.25);
+      ctx.strokeStyle = `rgba(197,181,255,${.32*p*(1-i*.2)})`;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, rr, t*(1.2+i*.4), t*(1.2+i*.4)+Math.PI*1.45);
+      ctx.stroke();
+    }
+    glow(GLOW.purple, 0, 0, h.r*.9, .3*p);
+  } else if(h.kind === 'blizzard'){
+    const p = clamp(h.life/h.maxLife, 0, 1);
+    const rg2 = ctx.createRadialGradient(0,0,6,0,0,h.r);
+    rg2.addColorStop(0, `rgba(223,244,255,${.18*p})`);
+    rg2.addColorStop(.75, `rgba(190,225,245,${.12*p})`);
+    rg2.addColorStop(1, 'rgba(190,225,245,0)');
+    ctx.fillStyle = rg2;
+    ctx.beginPath(); ctx.arc(0, 0, h.r, 0, TAU); ctx.fill();
+    for(let i=0;i<11;i++){
+      const a = i*2.4 + t*1.1, rr = h.r*(.25 + ((i*37)%60)/100);
+      const fy = ((t*(28+i*4) + i*31) % 200)/200;
+      ctx.fillStyle = `rgba(240,252,255,${.75*p*(1-fy*.6)})`;
+      ctx.fillRect(Math.cos(a)*rr, -h.r*.6 + fy*h.r*1.3, 2, 2);
+    }
+  }
+
   // lifetime ring for timed traps
-  if(h.kind !== 'mine' && h.life < h.maxLife - .4 && h.maxLife < 50){
+  if(h.kind !== 'mine' && h.kind !== 'flakshell' && h.life < h.maxLife - .4 && h.maxLife < 50){
     const p = clamp(h.life/h.maxLife, 0, 1);
     ctx.strokeStyle = h.kind === 'poison' ? 'rgba(150,230,110,.45)' : 'rgba(210,225,240,.45)';
     ctx.lineWidth = 2;
@@ -3283,6 +4329,79 @@ function drawHazard(h,t){
     ctx.arc(h.x, h.y, h.r*.98, -Math.PI/2, -Math.PI/2 + TAU*p);
     ctx.stroke();
   }
+}
+
+/* --- turret: bolted-down autocannon --- */
+function drawTurret(tu,t){
+  ctx.save();
+  ctx.translate(tu.x, tu.y);
+  ctx.fillStyle = 'rgba(6,12,10,.4)';
+  ctx.beginPath(); ctx.ellipse(0, 9, 15, 5, 0, 0, TAU); ctx.fill();
+
+  // tripod legs
+  ctx.strokeStyle = '#4d5b66';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  for(let i=0;i<3;i++){
+    const a = i*TAU/3 + .4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a)*13, Math.sin(a)*10);
+    ctx.stroke();
+  }
+  // base plate
+  ctx.fillStyle = '#7e909c';
+  ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#b9c7d1';
+  ctx.beginPath(); ctx.arc(-2, -2, 5.5, 0, TAU); ctx.fill();
+
+  // rotating head + barrel
+  ctx.save();
+  ctx.rotate(tu.aim);
+  ctx.fillStyle = '#3a4a40';
+  rrect(ctx, 2, -2.6, 20, 5.2, 2.4); ctx.fill();
+  ctx.fillStyle = '#7e909c';
+  rrect(ctx, 2, -1.4, 18, 2.8, 1.4); ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = '#5d7568';
+  ctx.beginPath(); ctx.arc(0, -1, 7.5, Math.PI, TAU); ctx.fill();
+  ctx.strokeStyle = '#131b16';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(0, -1, 7.5, Math.PI, TAU); ctx.stroke();
+
+  glow(tu.hit>0 ? GLOW.white : GLOW.amber, 0, -4, 18, .55);
+
+  // lifespan
+  const p = clamp(tu.life/tu.maxLife, 0, 1);
+  if(p < 1){
+    ctx.strokeStyle = 'rgba(255,233,163,.5)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(0, 0, 15, -Math.PI/2, -Math.PI/2 + TAU*p); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* --- boomerang saw --- */
+function drawBoomerang(bm,t){
+  ctx.save();
+  ctx.translate(bm.x, bm.y);
+  glow(GLOW.blue, 0, 0, 30, .45);
+  ctx.rotate(bm.spin);
+  ctx.fillStyle = '#e8f2ff';
+  ctx.strokeStyle = '#5fb8dd';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for(let i=0;i<4;i++){
+    const a = i*TAU/4;
+    ctx.lineTo(Math.cos(a)*13, Math.sin(a)*13);
+    ctx.lineTo(Math.cos(a+TAU/8)*4.5, Math.sin(a+TAU/8)*4.5);
+  }
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#9cd8f0';
+  ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, TAU); ctx.fill();
+  ctx.restore();
 }
 
 /* ------------------------------ render ---------------------------- */
@@ -3314,6 +4433,7 @@ function render(t){
 
   // traps sit flat on the floor, under everything else
   for(const h of game.hazards) if(visible(h.x,h.y,80)) drawHazard(h,t);
+  for(const tu of (game.turrets||[])) if(visible(tu.x,tu.y,90)) drawTurret(tu,t);
   for(const m of game.minions) if(visible(m.x,m.y,80)) drawMinion(m,t);
   for(const d of game.drones) if(visible(d.x,d.y,80)) drawDrone(d,t);
   for(const w of game.wisps) if(visible(w.x,w.y,80)) drawWisp(w,t);
@@ -3329,6 +4449,25 @@ function render(t){
   ctx.globalCompositeOperation = 'lighter';
   for(const b of game.beams){
     const k = b.life/b.max;
+    if(b.kind === 'laser'){
+      const ox = b.pts[0].x, oy = b.pts[0].y;
+      const ex = ox + Math.cos(b.angle)*b.length, ey = oy + Math.sin(b.angle)*b.length;
+      const wobble = 1 + Math.sin(t*30)*.09;
+      ctx.globalAlpha = k;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(200,240,255,.28)';
+      ctx.lineWidth = b.width*2.1*wobble;
+      ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ex,ey); ctx.stroke();
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = b.width*wobble;
+      ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ex,ey); ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = b.width*.36;
+      ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ex,ey); ctx.stroke();
+      glow(GLOW.blue, ox, oy, b.width*4, .5*k);
+      ctx.globalAlpha = 1;
+      continue;
+    }
     ctx.strokeStyle = b.color;
     ctx.globalAlpha = k;
     ctx.lineWidth = 2.6*k+1.4;
@@ -3352,9 +4491,27 @@ function render(t){
   }
   ctx.globalAlpha = 1;
 
+  for(const bm of (game.boomerangs||[])) if(visible(bm.x,bm.y,60)) drawBoomerang(bm,t);
+
   // bullets
   for(const b of game.bullets){
     if(!visible(b.x, b.y, 60)) continue;
+    if(b.rail){
+      const k2 = clamp(b.life/b.maxLife,0,1);
+      const a2 = Math.atan2(b.vy,b.vx);
+      ctx.globalAlpha = k2;
+      const grd = ctx.createLinearGradient(b.x,b.y, b.x-Math.cos(a2)*70, b.y-Math.sin(a2)*70);
+      grd.addColorStop(0,'rgba(230,248,255,.95)');
+      grd.addColorStop(1,'rgba(120,200,255,0)');
+      ctx.strokeStyle = grd;
+      ctx.lineWidth = b.r*2.4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x,b.y);
+      ctx.lineTo(b.x-Math.cos(a2)*70, b.y-Math.sin(a2)*70);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
     const lifeK = clamp(b.life/b.maxLife,0,1);
     const bulb = b.hostile ? GLOW.red
       : b.color==='#b8ff83'||b.color==='#d9ffa1' ? GLOW.green
@@ -3757,7 +4914,8 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     get g(){ return game; }, stat, applyCard, availableCards, spawnEnemy, start, render, tick,
     weaponLevel, WEAPONS, WEAPON_SPEC, hurt, step:(n,dt=.0167)=>{ for(let i=0;i<n;i++) tick(dt); },
     WORLD, cam, worldEnt, worldDepth, depthLabel, buildWorld, resolveSolid, makeEnemyAt,
-    collectDrop, spawnBuildingLoot, spawnBuildingGuards, beginCooldown, beginRound, W, H
+    collectDrop, spawnBuildingLoot, spawnBuildingGuards, beginCooldown, beginRound, W, H,
+    sprite, SPR, drawFighter, drawEnemy
   };
 }
 })();
