@@ -260,7 +260,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
 @media (pointer:coarse){body.immersive .hud-right{margin-top:30px}}
 
 </style>
-  <meta name="build-version" content="1.9.1" />
+  <meta name="build-version" content="2.0.0" />
 </head>
 <body>
   <div class="app">
@@ -716,7 +716,56 @@ const WEAPON_SPEC = {
   rebirth:[
     {hp:.50, knock:0},
     {hp:.75, knock:0},
-    {hp:1.0, knock:1}]
+    {hp:1.0, knock:1}],
+  /* ---------- second wave ---------- */
+  blackhole:[
+    {cd:9.0, radius:150, pull:300, duration:1.8, dmg:.35, tick:.35},
+    {cd:7.4, radius:185, pull:400, duration:2.3, dmg:.48, tick:.30},
+    {cd:5.8, radius:225, pull:520, duration:2.8, dmg:.62, tick:.26}],
+  hexbolt:[
+    {cd:1.7, shots:1, dmg:1.0, weaken:.25, duration:3.0, speed:420},
+    {cd:1.4, shots:2, dmg:1.1, weaken:.35, duration:3.6, speed:450},
+    {cd:1.1, shots:2, dmg:1.3, weaken:.45, duration:4.2, speed:480}],
+  totem:[
+    {cd:9.0, radius:130, heal:2.2, life:9, max:1},
+    {cd:7.5, radius:160, heal:3.4, life:11, max:2},
+    {cd:6.0, radius:190, heal:4.6, life:13, max:2}],
+  shockwave:[
+    {cd:3.0, length:230, width:34, dmg:1.1, knock:120},
+    {cd:2.5, length:300, width:44, dmg:1.4, knock:170},
+    {cd:2.0, length:380, width:56, dmg:1.7, knock:260}],
+  magnetar:[
+    {range:170, xpMul:.15, zap:0},
+    {range:230, xpMul:.30, zap:0},
+    {range:300, xpMul:.45, zap:1}],
+  phase:[
+    {dmg:.8, cdCut:0, evade:0},
+    {dmg:1.2, cdCut:.25, evade:0},
+    {dmg:1.8, cdCut:.40, evade:.6}],
+  overcharge:[
+    {rate:.25, taken:.08},
+    {rate:.45, taken:.10},
+    {rate:.70, taken:.12}],
+  siphon:[
+    {heal:.06, shield:0},
+    {heal:.10, shield:0},
+    {heal:.16, shield:.30}],
+  sapper:[
+    {cd:2.6, count:2, dmg:1.1, radius:62, bounce:0},
+    {cd:2.1, count:3, dmg:1.3, radius:74, bounce:0},
+    {cd:1.6, count:4, dmg:1.5, radius:88, bounce:1}],
+  orbital:[
+    {cd:6.0, width:30, dmg:1.6, hold:.8, length:620},
+    {cd:4.8, width:40, dmg:2.0, hold:1.0, length:700},
+    {cd:3.8, width:50, dmg:2.4, hold:1.3, length:780}],
+  scavenger:[
+    {dropMul:.20, healMul:.20, xpMul:0},
+    {dropMul:.40, healMul:.35, xpMul:.15},
+    {dropMul:.60, healMul:.50, xpMul:.30}],
+  warcry:[
+    {cd:7.0, radius:280, dmgMul:.20, speedMul:.15, duration:3.0, stun:0},
+    {cd:6.0, radius:340, dmgMul:.30, speedMul:.20, duration:4.0, stun:0},
+    {cd:5.0, radius:400, dmgMul:.45, speedMul:.25, duration:5.0, stun:1}]
 };
 
 const STATS = [
@@ -836,7 +885,68 @@ const STATS = [
    levels:[
      '1回だけ致死ダメージを耐え、HP50%で復活する。',
      '復活時のHPが75%になる。',
-     '覚醒：復活時に周囲の敵を吹き飛ばし、無敵時間が延びる。']}
+     '覚醒：復活時に周囲の敵を吹き飛ばし、無敵時間が延びる。']},
+  /* ---------- second wave of system cards ---------- */
+  {id:'blackhole', icon:'◍', name:'ブラックホール', tag:'RANGED',
+   levels:[
+     '指定地点に超重力を発生させ、敵を中心へ引き込み続ける。',
+     '吸引範囲と持続時間が伸び、内部の敵を押しつぶす。',
+     '覚醒：終了時に崩壊爆発。範囲内の敵に大ダメージ。']},
+  {id:'hexbolt', icon:'✶', name:'ヘックスボルト', tag:'RANGED',
+   levels:[
+     '呪弾を撃ち込み、命中した敵を弱らせる（与ダメ低下）。',
+     '弾が2連射になり、弱体の効果が強まる。',
+     '覚醒：弱った敵が倒れると、その呪いが近くの敵へ移る。']},
+  {id:'totem', icon:'⌂', name:'トーテム', tag:'SUMMON',
+   levels:[
+     'その場にトーテムを設置。周囲の味方を継続回復する。',
+     '回復量が増え、範囲も広がる。同時設置数が増える。',
+     '覚醒：トーテムの周囲で味方の与ダメージが上昇する。']},
+  {id:'shockwave', icon:'≈', name:'ショックウェーブ', tag:'RANGED',
+   levels:[
+     '着弾点から衝撃波が走り、直線状の敵をまとめて押し流す。',
+     '衝撃波が広がり、威力と吹き飛ばしが増す。',
+     '覚醒：衝撃波が敵を壁まで弾き飛ばし、壁際で追加ダメージ。']},
+  {id:'magnetar', icon:'⊚', name:'マグネター', tag:'UTILITY',
+   levels:[
+     '周囲のドロップを常に引き寄せる。回収範囲が広がる。',
+     'ドロップ回収時にXPが増える。',
+     '覚醒：ドロップを拾うたび、近くの敵へ電撃が走る。']},
+  {id:'phase', icon:'⌁', name:'フェイズステップ', tag:'UTILITY',
+   levels:[
+     'ダッシュ時、すれ違った敵にダメージを与える。',
+     'ダッシュのクールダウンが短くなり、ダメージも上昇。',
+     '覚醒：ダッシュ後0.6秒間、あらゆる攻撃を避ける。']},
+  {id:'overcharge', icon:'⊛', name:'オーバーチャージ', tag:'STAT',
+   levels:[
+     '攻撃速度 +25%。ただし被ダメージ +8%。',
+     '攻撃速度 +45%。被ダメージ +10%。',
+     '覚醒：攻撃速度 +70%。連続で撃つほど弾が太くなる。']},
+  {id:'siphon', icon:'⊗', name:'サイフォン', tag:'ON KILL',
+   levels:[
+     '敵を倒すたび、減っているHPの一部を回復する。',
+     '回復量が増える。',
+     '覚醒：撃破時、余剰回復がシールドになる。']},
+  {id:'sapper', icon:'✂', name:'サッパー', tag:'RANGED',
+   levels:[
+     '射線上に地雷を撒く。敵が踏むと爆発する。',
+     '撒く数が増え、爆発範囲が広がる。',
+     '覚醒：地雷が跳ねて敵を追い、起爆時に2連鎖する。']},
+  {id:'orbital', icon:'☄', name:'オービタルレーザー', tag:'RANGED',
+   levels:[
+     '上空からレーザーを照射し、直線上の敵を焼き切る（要チャージ）。',
+     'チャージが短縮され、幅と威力が増す。',
+     '覚醒：照射中に軌道が敵を追尾し、焼き続ける。']},
+  {id:'scavenger', icon:'✦', name:'スカベンジャー', tag:'STAT',
+   levels:[
+     'ドロップの出現率と回復アイテムの効果が上がる。',
+     'さらに上昇し、XP獲得も増える。',
+     '覚醒：撃破時に低確率でドロップが確定発生する。']},
+  {id:'warcry', icon:'♫', name:'ウォークライ', tag:'UTILITY',
+   levels:[
+     '叫びで周囲のクローンの移動速度と攻撃力を上げる。',
+     '効果時間と範囲が伸びる。',
+     '覚醒：叫びで敵を怯ませ、味方の射程も伸ばす。']}
 ];
 
 /* per-kill growth for each STACK card, indexed by card level (0 = not owned) */
@@ -874,7 +984,8 @@ function fighter(x,y,clone=false){
     cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0, wisp:0, mine:0, spike:0, poison:0,
         railgun:0, ricochet:0, flak:0, holy:0, boomerang:0, turret:0, guardian:0, vortex:0, beam:0, blizzard:0,
         cloak:0, decoy:0, chrono:0, brainwash:0, terror:0, curse:0, pacify:0,
-        homing:0, airstrike:0, gravity:0, thorns:0, lightning:0, cannon:0},
+        homing:0, airstrike:0, gravity:0, thorns:0, lightning:0, cannon:0,
+        blackhole:0, hexbolt:0, totem:0, shockwave:0, sapper:0, orbital:0, warcry:0},
     bladesBack:[], torusCd:0, swingAnim:0, aimAngle:-Math.PI/2, face:1, shield:0,
     invisible:0, cloakCd:0, haste:0, thornCd:0,
     orbitPhase:rand(0,TAU), blades:[],
@@ -891,6 +1002,7 @@ function newGame(){
     player:fighter(WORLD_W/2, WORLD_H/2), clones:[], enemies:[], bullets:[], minions:[],
     drones:[], wisps:[], hazards:[], boomerangs:[], turrets:[], decoys:[],
     missiles:[], strikes:[], shells:[], gravityWells:[], skeletons:[],
+    holes:[], totems:[], shockwaves:[], mines2:[], orbitals:[],
     particles:[], texts:[], beams:[], rings:[], sparks:[], drops:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:'',
     cooldown:0, cooldown0:5, roundReady:false, roundAnchor:{x:0,y:0}, pendingStage:0,
@@ -909,6 +1021,8 @@ function stat(f){
   const stackDmg   = st.dmg   || 0;   // damage %
   const stackSpeed = st.spd   || 0;   // flat move speed
   const stackRange = st.rng   || 0;   // flat range
+  /* overcharge buys speed with a little extra incoming damage */
+  const ocTaken = (f.overcharge && f.overcharge.taken) || 0;
   const stackRegen = st.reg   || 0;   // hp / sec
   let dmgMul = (1 + pw*.20 + (pw>=3?.45:0)) * (1 + stackDmg);
   /* berserk: the lower your HP, the harder you hit */
@@ -922,16 +1036,21 @@ function stat(f){
   if(glass) dmgMul *= 1 + glass.dmg;
   /* spirit bond: clones hit harder when their parent owns the card */
   if(f.clone && f.spiritBuff) dmgMul *= 1 + f.spiritBuff;
+  /* warcry: squad-wide temporary damage boost */
+  if((f.warcryBuff||0) > 0 && f.warcryDmg) dmgMul *= 1 + f.warcryDmg;
+  /* awakened totem aura */
+  if((f.warcryBuffAura||0) > 0) dmgMul *= 1.25;
   return {
     damage: 18*dmgMul,
     dmgMul,
-    rate: .62 / (1 + stackAtk),
+    rate: (.62 / (1 + stackAtk)) / (1 + ((f.overcharge && f.overcharge.rate) || 0)),
     speed: (132 + n('speed')*19 + (n('speed')>=3?22:0) + stackSpeed) * (f.haste > 0 ? 1.18 : 1),
     regen: n('regen')*.6 + (n('regen')>=3?1.1:0) + stackRegen,
     bulletSpeed: 340 + n('bullet')*62,
     range: (400*(1 + n('bullet')*.14 + (n('bullet')>=3?.18:0))) + stackRange,
     dashCooldown: Math.max(1.1, 3 - n('dash')*.45 - (n('dash')>=3?.35:0)),
-    healMul: 1 + n('vital')*.25
+    healMul: 1 + n('vital')*.25,
+    takenMul: 1 + ocTaken
   };
 }
 
@@ -979,9 +1098,16 @@ function cardPool(f){
       level:lv, desc:d.levels[Math.min(lv,2)], burst:lv===0});
   }
   for(const d of STATS){
-    // STACK cards keep their level in f.weapons, ordinary stats in f.upgrades
-    const lv = (KILL_GROWTH[d.id] !== undefined) ? (f.weapons[d.id]||0) : (f.upgrades[d.id]||0);
-    if(lv < 3) pool.push({id:d.id, icon:d.icon, name:d.name, kind:'stat', tag:d.tag, level:lv,
+    /* Weapon-like ability cards (anything with a WEAPON_SPEC), plus the STACK
+       family, keep their level in f.weapons. Ordinary stat upgrades use
+       f.upgrades. Reading the wrong map made maxed ability cards look brand
+       new forever, so they kept being offered after Lv3. */
+    const ability = WEAPON_SPEC[d.id] !== undefined;
+    const lv = (KILL_GROWTH[d.id] !== undefined || ability)
+      ? (f.weapons[d.id]||0)
+      : (f.upgrades[d.id]||0);
+    if(lv < 3) pool.push({id:d.id, icon:d.icon, name:d.name,
+      kind: ability ? 'weapon' : 'stat', tag:d.tag, level:lv,
       desc:d.levels[Math.min(lv,2)]});
   }
   return pool;
@@ -1005,7 +1131,8 @@ function applyCard(f,id){
     f.hp = Math.min(f.maxHp, f.hp + (id==='heal3'?50:id==='heal2'?40:30));
     return;
   }
-  if(id === 'glass' || id === 'berserk' || id === 'rebirth' || id === 'lifelink' || id === 'summoner' || id === 'spirit'){
+  if(id === 'glass' || id === 'berserk' || id === 'rebirth' || id === 'lifelink' || id === 'summoner' || id === 'spirit'
+     || id === 'magnetar' || id === 'phase' || id === 'overcharge' || id === 'siphon' || id === 'scavenger'){
     // passive system cards: stored in f.weapons, no cooldown
     const lv = f.weapons[id] || 0;
     if(lv >= 3) return;
@@ -1024,6 +1151,25 @@ function applyCard(f,id){
       f.leech = lspec.leech;
       f.leechKill = lspec.killHeal;
     }
+    if(id === 'siphon'){
+      const sspec = WEAPON_SPEC.siphon[f.weapons[id]-1];
+      f.siphonHeal = sspec.heal;
+    }
+    if(id === 'overcharge'){
+      f.overcharge = WEAPON_SPEC.overcharge[f.weapons[id]-1];
+    }
+    if(id === 'phase'){
+      const pspec = WEAPON_SPEC.phase[f.weapons[id]-1];
+      f.dashDamage = pspec.dmg * stat(f).damage;
+      f.dashEvade = pspec.evade;
+      f.dashCdCut = pspec.cdCut;
+    }
+    if(id === 'magnetar'){
+      const mspec = WEAPON_SPEC.magnetar[f.weapons[id]-1];
+      f.magnetRange = mspec.range;
+      f.magnetXp = mspec.xpMul;
+      f.magnetZap = mspec.zap ? 28 : 0;
+    }
     return;
   }
   if(WEAPON_SPEC[id]){
@@ -1036,7 +1182,9 @@ function applyCard(f,id){
                    blizzard:'blizzard', cloak:'cloak', decoy:'decoy', chrono:'chrono',
                    brainwash:'brainwash', terror:'terror', curse:'curse', pacify:'pacify',
                    homing:'homing', airstrike:'airstrike', gravity:'gravity', thorns:'thorns',
-                   lightning:'lightning', cannon:'cannon'}[id];
+                   lightning:'lightning', cannon:'cannon',
+                   blackhole:'blackhole', hexbolt:'hexbolt', totem:'totem', shockwave:'shockwave',
+                   sapper:'sapper', orbital:'orbital', warcry:'warcry'}[id];
     if(lv === 0 && cdKey && f.cd[cdKey] !== undefined) f.cd[cdKey] = .45;
     if(lv === 0 && id === 'turret') f.cd.turret = .1;
     if(id === 'drone') syncDrones(f);
@@ -1253,6 +1401,7 @@ function stageClear(){
   game.hazards = [];
   game.wisps = [];
   game.drops = [];
+  game.holes = []; game.totems = []; game.shockwaves = []; game.mines2 = []; game.orbitals = [];
   game.boss = null;
   /* XP is per-individual now: clearing a stage no longer hands a lump sum to
      the whole squad. Each fighter only grows from kills it actually makes
@@ -1829,12 +1978,28 @@ function rollDrop(e){
     makeDrop(e.x, e.y, kind);
   }
 }
+/* scavenger: a guaranteed drop from a kill */
+function spawnKillDrop(x, y){
+  const pool = ['heal','xp','xp','frenzy','magnet'];
+  const kind = pool[Math.floor(Math.random()*pool.length)];
+  makeDrop(x, y, kind);
+  const d = game.drops[game.drops.length-1];
+  if(d) d.life = d.maxLife = 9;
+}
 function collectDrop(d, taker){
   const p = taker || game.player;
   const isPlayer = p === game.player;
   d.alive = false;
+  /* magnetar: every pickup crackles with lightning at max level */
+  if(p.magnetZap){
+    for(const e of game.enemies){
+      if(e.alive && dist(p,e) < 190){ hurt(e, p.magnetZap, p); }
+    }
+    game.rings.push({x:p.x,y:p.y,r:10,maxR:190,life:.28,max:.28,color:'#9fe6ff',width:3});
+  }
   if(d.kind === 'heal'){
-    const amount = Math.round(45*stat(p).healMul);
+    const scav = (p.weapons && p.weapons.scavenger) ? WEAPON_SPEC.scavenger[p.weapons.scavenger-1].healMul : 0;
+    const amount = Math.round(45*stat(p).healMul*(1+scav));
     p.hp = Math.min(p.maxHp, p.hp + amount);
     game.texts.push({x:d.x,y:d.y-16,vy:-30,life:.9,max:.9,text:'+'+amount+' HP',color:'#a6ff7a',size:14});
     particles(d.x,d.y,'#a6ff7a',14,1.1);
@@ -1885,7 +2050,8 @@ function collectDrop(d, taker){
       game.texts.push({x:d.x,y:d.y-18,vy:-30,life:1,max:1,text:'XP +80',color:'#d9ccff',size:14});
     }
   } else {
-    const amount = d.amount || 45;
+    let amount = d.amount || 45;
+    if(p.magnetXp) amount = Math.round(amount * (1 + p.magnetXp));
     grantXp(p, amount);
     game.texts.push({x:d.x,y:d.y-16,vy:-30,life:.9,max:.9,text:'XP +'+amount,color:'#d9ccff',size:14});
     particles(d.x,d.y,'#c4b5ff',14,1.1);
@@ -2454,6 +2620,37 @@ function updateWeapons(f,dt,target){
     const cspec = WEAPON_SPEC.cannon[w.cannon-1];
     if(f.cd.cannon <= 0 && target && dist(f,target) <= 470) cannonFire(f,target,s);
   }
+  /* ---- second wave ---- */
+  if(w.blackhole){
+    f.cd.blackhole -= dt;
+    if(f.cd.blackhole <= 0) blackholeCast(f);
+  }
+  if(w.hexbolt){
+    f.cd.hexbolt -= dt;
+    const hspec = WEAPON_SPEC.hexbolt[w.hexbolt-1];
+    if(f.cd.hexbolt <= 0 && target && dist(f,target) <= 520) hexFire(f,target,s);
+  }
+  if(w.totem){
+    f.cd.totem -= dt;
+    if(f.cd.totem <= 0) totemPlace(f);
+  }
+  if(w.shockwave){
+    f.cd.shockwave -= dt;
+    if(f.cd.shockwave <= 0 && target && dist(f,target) <= 560) shockwaveFire(f,target,s);
+  }
+  if(w.sapper){
+    f.cd.sapper -= dt;
+    if(f.cd.sapper <= 0) sapperFire(f);
+  }
+  if(w.orbital){
+    f.cd.orbital -= dt;
+    if(f.cd.orbital <= 0 && target && dist(f,target) <= 640) orbitalCast(f,target);
+  }
+  if(w.warcry){
+    f.cd.warcry -= dt;
+    if(f.cd.warcry <= 0) warcryCast(f);
+  }
+  if(w.magnetar || w.phase || w.overcharge) secondWaveTick(f, dt);
   if(w.thorns) barrierTick(f, dt);
   if(w.spirit) spiritTick(f, dt);
   if(w.lifelink){
@@ -3305,6 +3502,298 @@ function skeletonTick(dt){
   }
   game.skeletons = game.skeletons.filter(s=>s.alive);
 }
+/* ================= second wave of system cards ================== */
+
+/* --- black hole: a vortex that grinds and finally collapses ----- */
+function blackholeCast(f){
+  const lv = weaponLevel(f,'blackhole'), spec = WEAPON_SPEC.blackhole[lv-1];
+  f.cd.blackhole = spec.cd;
+  const [t] = nearest(f);
+  const tx = t && dist(f,t) < 620 ? t.x : f.x + Math.cos(f.aimAngle||0)*220;
+  const ty = t && dist(f,t) < 620 ? t.y : f.y + Math.sin(f.aimAngle||0)*220;
+  game.holes.push({owner:f, lv, x:clamp(tx,40,WORLD_W-40), y:clamp(ty,40,WORLD_H-40),
+    r:spec.radius, pull:spec.pull, life:spec.duration, maxLife:spec.duration,
+    dmg:spec.dmg, tick:spec.tick, cdT:0, dead:false});
+  game.rings.push({x:tx,y:ty,r:10,maxR:spec.radius,life:.5,max:.5,color:'#c9a8ff',width:4});
+  particles(tx,ty,'#b28cff',18,1.4);
+  f.cast = .35;
+}
+function holeTick(dt){
+  game.holes = game.holes || [];
+  for(const h of game.holes){
+    h.life -= dt;
+    h.cdT -= dt;
+    for(const e of game.enemies){
+      if(!e.alive || e.boss) continue;
+      const d = dist(h,e);
+      if(d > h.r*1.25) continue;
+      if(d > 1){
+        const k = Math.min(1, (h.pull*(1 - d/(h.r*1.25))/h.r) * dt / Math.max(30,d));
+        e.x += (h.x-e.x)*k; e.y += (h.y-e.y)*k;
+      }
+      if(h.cdT <= 0 && d < h.r*.55) hurt(e, h.dmg*stat(h.owner).damage, h.owner);
+    }
+    if(h.cdT <= 0) h.cdT = h.tick;
+    if(h.life <= 0 && !h.dead){
+      h.dead = true;
+      if(h.lv >= 3){
+        for(const e of game.enemies){
+          if(e.alive && dist(h,e) < h.r*1.1) hurt(e, 2.6*stat(h.owner).damage, h.owner);
+        }
+        game.rings.push({x:h.x,y:h.y,r:20,maxR:h.r*1.3,life:.55,max:.55,color:'#e8d5ff',width:6});
+        particles(h.x,h.y,'#d9c4ff',30,1.8);
+        shake = Math.min(shake+3, 6);
+      }
+    }
+  }
+  game.holes = game.holes.filter(h=>h.life > 0 || !h.dead);
+  game.holes = game.holes.filter(h=>h.life > 0);
+}
+
+/* --- hex bolt: weakening curse shot ----------------------------- */
+function hexFire(f,target,s){
+  const lv = weaponLevel(f,'hexbolt'), spec = WEAPON_SPEC.hexbolt[lv-1];
+  f.cd.hexbolt = spec.cd;
+  const a = Math.atan2(target.y-f.y, target.x-f.x);
+  f.aimAngle = a; f.face = Math.cos(a) < -.01 ? -1 : 1; f.swingAnim = .2;
+  for(let i=0;i<spec.shots;i++){
+    const off = (i - (spec.shots-1)/2) * .07;
+    game.bullets.push({
+      x:f.x+Math.cos(a)*18, y:f.y+Math.sin(a)*18, px:f.x, py:f.y,
+      vx:Math.cos(a+off)*spec.speed, vy:Math.sin(a+off)*spec.speed,
+      life:1.4, maxLife:1.4, damage:spec.dmg*s.damage, owner:f, hostile:false, r:4.2,
+      pierce:0, hitList:[], color:'#c9a2ff', hex:spec
+    });
+  }
+  particles(f.x+Math.cos(a)*20, f.y+Math.sin(a)*20, '#c9a2ff', 6, .8);
+}
+
+/* --- totem: a planted healing post ------------------------------ */
+function totemPlace(f){
+  const lv = weaponLevel(f,'totem'), spec = WEAPON_SPEC.totem[lv-1];
+  f.cd.totem = spec.cd;
+  game.totems = game.totems || [];
+  const mine = game.totems.filter(t=>t.owner===f && t.life > 0);
+  if(mine.length >= spec.max){
+    // refresh the oldest instead of hoarding
+    mine[0].life = spec.life;
+    return;
+  }
+  const a = rand(0,TAU), r = rand(30,70);
+  const tot = {owner:f, lv, x:clamp(f.x+Math.cos(a)*r,20,WORLD_W-20),
+    y:clamp(f.y+Math.sin(a)*r,20,WORLD_H-20), r:16, hp:200+lv*90, maxHp:200+lv*90,
+    life:spec.life, maxLife:spec.life, radius:spec.radius, heal:spec.heal,
+    t:0, alive:true, kind:'totem', seed:rand(0,100), bob:rand(0,7)};
+  game.totems.push(tot);
+  game.rings.push({x:tot.x,y:tot.y,r:6,maxR:60,life:.4,max:.4,color:'#8fe6c0',width:3});
+  particles(tot.x,tot.y,'#8fe6c0',12,1.1);
+}
+function totemTick(dt){
+  game.totems = game.totems || [];
+  for(const tot of game.totems){
+    if(tot.life === undefined) continue;
+    tot.life -= dt;
+    tot.t += dt;
+    if(tot.life <= 0) tot.alive = false;
+    const allies = allyList();
+    for(const a of allies){
+      if(!a.alive || a === tot) continue;
+      if(dist(tot,a) > tot.radius) continue;
+      if(a.hp === undefined) continue;
+      a.hp = Math.min(a.maxHp, a.hp + tot.heal*dt);
+      if(tot.lv >= 3) a.warcryBuff = Math.max(a.warcryBuff||0, .5);
+    }
+  }
+  game.totems = game.totems.filter(t=>t.alive !== false && t.life > 0);
+}
+
+/* --- shockwave: a linear blast that slams enemies away ---------- */
+function shockwaveFire(f,target,s){
+  const lv = weaponLevel(f,'shockwave'), spec = WEAPON_SPEC.shockwave[lv-1];
+  f.cd.shockwave = spec.cd;
+  const a = Math.atan2(target.y-f.y, target.x-f.x);
+  f.aimAngle = a;
+  game.shockwaves.push({owner:f, lv, x:f.x, y:f.y, a, length:spec.length, width:spec.width,
+    dmg:spec.dmg*s.damage, knock:spec.knock, t:0, life:.42, maxLife:.42, hit:new Set()});
+  f.cast = .3;
+}
+function shockwaveTick(dt){
+  game.shockwaves = game.shockwaves || [];
+  for(const w of game.shockwaves){
+    w.t += dt;
+    w.life -= dt;
+    const grow = Math.min(1, w.t/.22);
+    for(const e of game.enemies){
+      if(!e.alive || w.hit.has(e)) continue;
+      const dx = e.x-w.x, dy = e.y-w.y;
+      const along = dx*Math.cos(w.a) + dy*Math.sin(w.a);
+      if(along < 0 || along > w.length*grow) continue;
+      const perp = Math.abs(-dx*Math.sin(w.a) + dy*Math.cos(w.a));
+      if(perp > w.width*.5 + (e.r||13)) continue;
+      w.hit.add(e);
+      hurt(e, w.dmg, w.owner);
+      const l = Math.hypot(dx,dy)||1;
+      e.x = clamp(e.x + dx/l*w.knock*.5, 12, WORLD_W-12);
+      e.y = clamp(e.y + dy/l*w.knock*.5, 12, WORLD_H-12);
+      if(w.lv >= 3){
+        const st = solidAt(e.x, e.y, (e.r||13) + 16);
+        if(st) hurt(e, w.dmg*.6, w.owner);
+      }
+    }
+  }
+  game.shockwaves = game.shockwaves.filter(w=>w.life > 0);
+}
+
+/* --- sapper: scattered mines that bounce and chain -------------- */
+function sapperFire(f){
+  const lv = weaponLevel(f,'sapper'), spec = WEAPON_SPEC.sapper[lv-1];
+  f.cd.sapper = spec.cd;
+  game.mines2 = game.mines2 || [];
+  for(let i=0;i<spec.count;i++){
+    const a = rand(0,TAU), r = rand(50,150);
+    game.mines2.push({owner:f, lv, x:clamp(f.x+Math.cos(a)*r,20,WORLD_W-20),
+      y:clamp(f.y+Math.sin(a)*r,20,WORLD_H-20), r:7, arm:.35,
+      dmg:spec.dmg*stat(f).damage, radius:spec.radius, life:14, bounce:spec.bounce,
+      hop:rand(.6,1.4), t:0, alive:true, kind:'mine2'});
+  }
+}
+function sapperTick(dt){
+  game.mines2 = game.mines2 || [];
+  for(const m of game.mines2){
+    if(!m.alive) continue;
+    m.life -= dt;
+    m.arm = Math.max(0, m.arm-dt);
+    m.t = (m.t||0)+dt;
+    if(m.life <= 0){ m.alive = false; continue; }
+    if(m.bounce){
+      // hop toward the closest enemy like a live grenade
+      const [t] = nearest(m);
+      if(t){
+        const d = dist(m,t);
+        if(d > 1){ const sp = 90*dt; m.x += (t.x-m.x)/d*sp; m.y += (t.y-m.y)/d*sp; }
+        if(d < 26){ m.timer = (m.timer||0) + dt; if(m.timer > .12) m.hitNow = true; }
+      }
+    }
+    for(const e of game.enemies){
+      if(!e.alive) continue;
+      if(dist(m,e) < (e.r||13) + m.r + 4) m.hitNow = true;
+    }
+    if(m.hitNow && m.arm <= 0){
+      m.alive = false;
+      for(const e of game.enemies) if(e.alive && dist(m,e) < m.radius) hurt(e, m.dmg, m.owner);
+      game.rings.push({x:m.x,y:m.y,r:5,maxR:m.radius,life:.32,max:.32,color:'#ffcf6b',width:4});
+      particles(m.x,m.y,'#ffcf6b',16,1.2);
+      shake = Math.min(shake+1.6, 5);
+    }
+  }
+  game.mines2 = game.mines2.filter(m=>m.alive);
+}
+
+/* --- orbital laser: charge, then sweep a burning line ----------- */
+function orbitalCast(f,target){
+  const lv = weaponLevel(f,'orbital'), spec = WEAPON_SPEC.orbital[lv-1];
+  f.cd.orbital = spec.cd;
+  const a = Math.atan2(target.y-f.y, target.x-f.x);
+  game.orbitals = game.orbitals || [];
+  game.orbitals.push({owner:f, lv, x:target.x, y:target.y, a, width:spec.width,
+    length:spec.length, dmg:spec.dmg*stat(f).damage, hold:spec.hold, life:spec.hold,
+    maxLife:spec.hold, tickT:0, charge:.45, paused:0});
+  f.cast = .5;
+}
+function orbitalTick(dt){
+  game.orbitals = game.orbitals || [];
+  for(const o of game.orbitals){
+    o.charge = Math.max(0, o.charge - dt);
+    if(o.charge > 0) continue;
+    o.life -= dt;
+    o.tickT -= dt;
+    if(o.lv >= 3){
+      // awakened beam drifts toward the nearest hostile
+      let best = null, bd = Infinity;
+      for(const e of game.enemies){
+        if(!e.alive) continue;
+        const d = dist(o,e);
+        if(d < bd){ bd = d; best = e; }
+      }
+      if(best && bd < 460){
+        const want = Math.atan2(best.y-o.y, best.x-o.x);
+        let diff = want - o.a;
+        while(diff > Math.PI) diff -= TAU;
+        while(diff < -Math.PI) diff += TAU;
+        o.a += diff * Math.min(1, dt*2.4);
+        o.x += (best.x-o.x)*Math.min(1, dt*1.5);
+        o.y += (best.y-o.y)*Math.min(1, dt*1.5);
+      }
+    }
+    if(o.tickT <= 0){
+      o.tickT = .16;
+      const ca = Math.cos(o.a), sa = Math.sin(o.a);
+      for(const e of game.enemies){
+        if(!e.alive) continue;
+        const dx = e.x-o.x, dy = e.y-o.y;
+        const along = dx*ca + dy*sa;
+        if(Math.abs(along) > o.length*.5) continue;
+        const perp = Math.abs(-dx*sa + dy*ca);
+        if(perp > o.width*.5 + (e.r||13)) continue;
+        hurt(e, o.dmg*.22, o.owner);
+      }
+    }
+  }
+  game.orbitals = game.orbitals.filter(o=>o.life > 0 || o.charge > 0);
+}
+
+/* --- warcry: a shout that buffs clones and stuns enemies -------- */
+function warcryCast(f){
+  const lv = weaponLevel(f,'warcry'), spec = WEAPON_SPEC.warcry[lv-1];
+  f.cd.warcry = spec.cd;
+  game.rings.push({x:f.x,y:f.y,r:20,maxR:spec.radius,life:.5,max:.5,color:'#ffe28a',width:5});
+  particles(f.x,f.y,'#ffe28a',22,1.5);
+  for(const c of game.clones){
+    if(!c.alive) continue;
+    if(dist(f,c) > spec.radius) continue;
+    c.warcryBuff = spec.duration;
+    c.warcryDmg = spec.dmgMul;
+  }
+  if(spec.stun){
+    for(const e of game.enemies){
+      if(!e.alive || e.boss) continue;
+      if(dist(f,e) > spec.radius) continue;
+      e.stun = Math.max(e.stun||0, .6);
+      e.feared = Math.max(e.feared||0, .8);
+    }
+  }
+  f.cast = .45;
+  notice && null;
+}
+
+/* --- per-frame upkeep for the passive second-wave cards --------- */
+function secondWaveTick(f, dt){
+  const w = f.weapons || {};
+  /* magnetar: pull drops in and zap on pickup */
+  if(w.magnetar && f === game.player){
+    const lv = w.magnetar, spec = WEAPON_SPEC.magnetar[lv-1];
+    f.magnetRange = spec.range;
+    f.magnetXp = spec.xpMul;
+    f.magnetZap = spec.zap ? Math.round(28*stat(f).damage*.4) : 0;
+  }
+  /* phase step: dash damage + evade window */
+  if(w.phase){
+    const lv = w.phase, spec = WEAPON_SPEC.phase[lv-1];
+    f.dashDamage = spec.dmg*stat(f).damage;
+    f.dashEvade = spec.evade;
+    f.dashCdCut = spec.cdCut;
+  }
+  /* overcharge: faster but squishier */
+  if(w.overcharge){
+    const spec = WEAPON_SPEC.overcharge[w.overcharge-1];
+    f.overcharge = spec;
+  }
+  /* warcry buff decay */
+  if(f.warcryBuff > 0) f.warcryBuff = Math.max(0, f.warcryBuff - dt);
+  if(f.warcryBuffAura > 0) f.warcryBuffAura = Math.max(0, f.warcryBuffAura - dt);
+  /* sapper + blackhole + shockwave + orbital refreshers are cooldown driven */
+}
+
 /* --- spirit bond: buff + recall the clones ----------------------- */
 function spiritTick(f, dt){
   const lv = weaponLevel(f,'spirit');
@@ -3412,6 +3901,14 @@ function hurt(t, amount, source){
     }
     return;
   }
+  /* siphon overshield soaks damage before it reaches HP */
+  if(t.level !== undefined && (t.siphonShield||0) > 0){
+    const use = Math.min(t.siphonShield, amount);
+    t.siphonShield -= use;
+    amount -= use;
+    game.rings.push({x:t.x,y:t.y,r:t.r*1.4,maxR:t.r*2.6,life:.22,max:.22,color:'#b6ff9e',width:2});
+    if(amount <= 0) return;
+  }
   /* shielder aura: nearby enemies take less damage */
   if(t.hp !== undefined && t.level === undefined && t.owner === undefined &&
      !t.boss && !t.charm && game.enemies){
@@ -3427,6 +3924,10 @@ function hurt(t, amount, source){
   }
   /* awakened guardian shield: fighters (never enemies) soak part of the hit */
   if(t.shield > 0 && t.level !== undefined) amount *= .62;
+  /* overcharge: the wearer trades safety for fire rate */
+  if(t.level !== undefined && t.overcharge && t.overcharge.taken) amount *= 1 + t.overcharge.taken;
+  /* hex bolt weakens the enemy that was hit */
+  if(t.level === undefined && t.weakenT > 0) amount *= 1 + (t.weakenAmt||0);
   /* KILL ARMOUR: every kill makes you a little harder to hurt */
   if(t.level !== undefined && t.stacks && t.stacks.arm) amount *= (1 - t.stacks.arm);
   /* cursed enemies take extra damage from everything */
@@ -3523,6 +4024,30 @@ function hurt(t, amount, source){
           addKillStacks(killer);        // permanent per-kill growth cards
           if(killer.leechKill) killer.hp = Math.min(killer.maxHp, killer.hp + killer.leechKill);
           summonSkeleton(killer, t);    // necromancer retinue
+          /* siphon: heal from the damage dealt, spill the rest into a shield */
+          if(killer.weapons && killer.weapons.siphon){
+            const sspec = WEAPON_SPEC.siphon[killer.weapons.siphon-1];
+            const healed = Math.min(amount*sspec.heal, Math.max(0, killer.maxHp-killer.hp));
+            killer.hp = Math.min(killer.maxHp, killer.hp + healed);
+            if(sspec.shield > 0){
+              const cap = killer.maxHp*sspec.shield;
+              killer.siphonShield = Math.min(cap, (killer.siphonShield||0) + Math.max(0, amount*sspec.heal - healed));
+            }
+          }
+          /* hex bolt: the curse jumps to a nearby enemy at max level */
+          if(killer.weapons && killer.weapons.hexbolt && killer.weapons.hexbolt >= 3 && t.weakenT > 0){
+            let best = null, bd = Infinity;
+            for(const e of game.enemies){
+              if(!e.alive || e === t || e.level !== undefined) continue;
+              const d = dist(t,e);
+              if(d < 160 && d < bd){ bd = d; best = e; }
+            }
+            if(best){ best.weakenAmt = .45; best.weakenT = 4.2; particles(best.x,best.y,'#c9a2ff',10,1); }
+          }
+          /* scavenger: awakened kills sometimes drop loot */
+          if(killer.weapons && killer.weapons.scavenger >= 3 && Math.random() < .18){
+            spawnKillDrop(t.x, t.y);
+          }
         }
       }
     }
@@ -3747,6 +4272,20 @@ function tickCooldown(dt){
     let len = Math.hypot(dx,dy);
     if(len > 0){ dx /= len; dy /= len; p.moveX = dx; p.moveY = dy; } else analog = 0;
     if(p.dashTime > 0){ dx = p.dashX; dy = p.dashY; analog = 1; }
+    /* phase step: anything we pass through during the dash takes damage */
+    if((p.dashDmgLeft||0) > 0){
+      p.dashDmgLeft -= dt;
+      if(!p.dashHit) p.dashHit = new Set();
+      for(const e of game.enemies){
+        if(!e.alive || p.dashHit.has(e)) continue;
+        if(dist(p,e) < (e.r||13) + p.r + 8){
+          p.dashHit.add(e);
+          hurt(e, p.dashDamage, p);
+          particles(e.x, e.y, '#9fe6ff', 8, .9);
+          game.rings.push({x:e.x,y:e.y,r:6,maxR:34,life:.22,max:.22,color:'#9fe6ff',width:2});
+        }
+      }
+    }
     const speed = stat(p).speed*(p.dashTime>0?2.7:1)*analog;
     p.moving = Math.abs(dx)+Math.abs(dy) > .05;
     p.legPhase += dt*(p.moving?10:0);
@@ -3900,7 +4439,10 @@ function tick(dt){
   const fighters = [game.player, ...game.clones.filter(c=>c.alive)];
   /* summoned allies are legitimate targets for the horde */
   const allyTargets = allyList();
-  for(const e of game.enemies) e.chronoSlow = 0;
+  for(const e of game.enemies){
+    e.chronoSlow = 0;
+    if(e.weakenT > 0) e.weakenT = Math.max(0, e.weakenT - dt);
+  }
 
   for(const f of fighters){
     f.hit = Math.max(0, f.hit-dt);
@@ -4310,6 +4852,11 @@ function tick(dt){
   shellTick(dt);
   gravityTick(dt);
   skeletonTick(dt);
+  holeTick(dt);
+  totemTick(dt);
+  shockwaveTick(dt);
+  sapperTick(dt);
+  orbitalTick(dt);
   for(const f of fighters){
     if(f.invisible > 0 || f.haste > 0){
       f.invisible = Math.max(0, f.invisible - dt);
@@ -4358,6 +4905,11 @@ function tick(dt){
     for(const t of game.enemies){
       if(!t.alive || b.hitList.includes(t)) continue;
       if(dist(b,t) < (t.r||13)+b.r){
+        if(b.hex && t.level === undefined){
+          t.weakenAmt = b.hex.weaken;
+          t.weakenT = b.hex.duration;
+          particles(t.x, t.y, '#c9a2ff', 8, .9);
+        }
         hurt(t, b.damage, b.owner);
         b.hitList.push(t);
         if(b.knock){
@@ -4528,7 +5080,14 @@ function dash(){
   if(game.state === 'playing' && p.dashCd <= 0){
     p.dashTime = .18;
     p.invuln = .25;
-    p.dashCd = stat(p).dashCooldown;
+    /* phase step: extra evade window and cheaper dashes */
+    if(p.dashEvade){ p.invuln = Math.max(p.invuln, p.dashEvade); }
+    p.dashCd = stat(p).dashCooldown * (1 - (p.dashCdCut||0));
+    /* phase step: carve through whatever we dash past */
+    if(p.dashDamage){
+      p.dashHit = new Set();
+      p.dashDmgLeft = .22;
+    }
     p.dashX = p.moveX||0;
     p.dashY = p.moveY||0;
     if(!p.dashX && !p.dashY){ p.dashX = Math.cos(p.angle); p.dashY = Math.sin(p.angle); }
@@ -5260,6 +5819,38 @@ SPR.skeletonIdle = [
   '....kwwwwk....',
   '...kwwk.kwwk..',
   '..kwwk...kwwk.'
+];
+
+/* ---------- totem: carved healing post with a glowing eye ---------- */
+SPR.totemIdle = [
+  '....kkkkkk....',
+  '...kyyyyyyk...',
+  '..kyyccyyyyk..',
+  '..kyccccyyyk..',
+  '..kyyccccyyk..',
+  '...kyyyyyyk...',
+  '....kmmmmk....',
+  '....kmmmmk....',
+  '...km.kk.mk...',
+  '...km.kv.mk...',
+  '....kmmmmk....',
+  '....kmmmmk....',
+  '...kmmmmmmk...',
+  '..kMMMMMMMMk..',
+  '..kKKKKKKKKk..'
+];
+/* ---------- sapper mine: squat charge with a blinking lamp ----- */
+SPR.mineIdle = [
+  '..kkkkkk..',
+  '.kmmmmmmk.',
+  'kmmnnnnmmk',
+  'kmnkyyknmk',
+  'kmnkccknmk',
+  'kmmnnnnmmk',
+  '.kmmmmmmk.',
+  '..kkkkkk..',
+  '...kMMk...',
+  '...kKKk...'
 ];
 
 /* ---------- boss: armoured core with a heavy shell ---------- */
@@ -6246,6 +6837,141 @@ function drawStrikeMark(st,t){
   glow(GLOW.red, 0, 0, st.radius*1.2, .12 + p*.3);
   ctx.restore();
 }
+function drawHole(h,t){
+  ctx.save();
+  ctx.translate(h.x, h.y);
+  const p = clamp(h.life/h.maxLife, 0, 1);
+  // accretion ring: layered arcs spiralling inward
+  glow(GLOW.purple, 0, 0, h.r*1.5, .3*p);
+  for(let i=0;i<3;i++){
+    const rr = h.r*(.32 + i*.22) * (1 + Math.sin(t*3 + i)*.06);
+    ctx.strokeStyle = `rgba(${180+i*22},${150+i*18},255,${(.5 - i*.12)*Math.min(1,p*1.6)})`;
+    ctx.lineWidth = 2.4 - i*.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, rr, t*2.2 + i*2.1, t*2.2 + i*2.1 + 4.4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, rr, t*2.2 + i*2.1 + Math.PI, t*2.2 + i*2.1 + Math.PI + 2.4);
+    ctx.stroke();
+  }
+  // dark core
+  const core = ctx.createRadialGradient(0,0,2, 0,0, h.r*.34);
+  core.addColorStop(0,'rgba(8,4,18,.95)');
+  core.addColorStop(.7,'rgba(40,18,70,.82)');
+  core.addColorStop(1,'rgba(90,50,150,0)');
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(0,0,h.r*.34,0,TAU); ctx.fill();
+  // infalling motes
+  for(let i=0;i<6;i++){
+    const a = t*2.6 + i*TAU/6;
+    const rr = h.r*(.45 + .4*Math.abs(Math.sin(t*1.6+i)));
+    const x = Math.cos(a)*rr, y = Math.sin(a)*rr;
+    ctx.fillStyle = 'rgba(215,195,255,.75)';
+    ctx.fillRect(x-1, y-1, 2.4, 2.4);
+  }
+  ctx.restore();
+}
+function drawTotem(tot,t){
+  ctx.save();
+  ctx.translate(tot.x, tot.y);
+  const p = clamp(tot.life/tot.maxLife, 0, 1);
+  ctx.globalAlpha = .35 + .25*Math.sin(t*3 + tot.seed);
+  glow(GLOW.green, 0, 0, tot.radius*1.1, .18);
+  ctx.globalAlpha = 1;
+  // ground halo
+  ctx.strokeStyle = `rgba(143,230,192,${.18 + .12*Math.sin(t*2)})`;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, tot.radius*.35, tot.radius*.9, 0, TAU); ctx.stroke();
+  ctx.fillStyle = 'rgba(6,12,10,.4)';
+  ctx.beginPath(); ctx.ellipse(0, tot.r*.7, tot.r*.8, tot.r*.3, 0, 0, TAU); ctx.fill();
+  const img = sprite('totemIdle');
+  if(img) blit(img, 0, -4 + Math.sin(t*2.4+tot.seed)*1.4, (tot.r*2.2)/14, false, .55 + .45*p);
+  // rising heal motes
+  for(let i=0;i<3;i++){
+    const yy = -((t*22 + i*16) % 40);
+    ctx.fillStyle = `rgba(160,255,205,${.5*(1 - Math.abs(yy)/40)})`;
+    ctx.fillRect(Math.sin(t*2+i*2)*10, yy, 2, 4);
+  }
+  ctx.restore();
+}
+function drawMine2(m,t){
+  if(m.arm > 0){
+    ctx.save(); ctx.translate(m.x, m.y);
+    ctx.globalAlpha = .5;
+    glow(GLOW.amber, 0, 0, 18, .25);
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.translate(m.x, m.y);
+  glow(GLOW.amber, 0, 0, 24, .35 + .25*Math.sin(t*8));
+  const img = sprite('mineIdle');
+  if(img) blit(img, 0, 0, .9, false, 1);
+  ctx.restore();
+}
+function drawShockwave(w,t){
+  ctx.save();
+  ctx.translate(w.x, w.y);
+  ctx.rotate(w.a);
+  const k = clamp(w.t/.22, 0, 1);
+  const reach = w.length*k;
+  const grd = ctx.createLinearGradient(0,0, reach, 0);
+  grd.addColorStop(0,'rgba(255,240,190,.85)');
+  grd.addColorStop(.55,'rgba(255,200,120,.45)');
+  grd.addColorStop(1,'rgba(255,150,90,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.moveTo(0, -w.width*.5);
+  ctx.lineTo(reach, -w.width*.28);
+  ctx.lineTo(reach, w.width*.28);
+  ctx.lineTo(0, w.width*.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,230,.75)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, Math.max(6,reach*.55), -w.width*.5/Math.max(30,reach*.55), w.width*.5/Math.max(30,reach*.55));
+  ctx.stroke();
+  ctx.restore();
+}
+function drawOrbital(o,t){
+  ctx.save();
+  // charge beam: a hairline that grows brighter
+  if(o.charge > 0){
+    const k = 1 - clamp(o.charge/.45, 0, 1);
+    ctx.translate(o.x, o.y);
+    ctx.rotate(o.a);
+    ctx.strokeStyle = `rgba(180,240,255,${.2 + k*.6})`;
+    ctx.lineWidth = 1 + k*2;
+    ctx.beginPath(); ctx.moveTo(-o.length*.5,0); ctx.lineTo(o.length*.5,0); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${.4*k})`;
+    ctx.beginPath(); ctx.arc(0,0, 10 + k*22, 0, TAU); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  const k = clamp(o.life/o.maxLife, 0, 1);
+  ctx.translate(o.x, o.y);
+  ctx.rotate(o.a);
+  const grd = ctx.createLinearGradient(-o.length*.5, 0, o.length*.5, 0);
+  grd.addColorStop(0,'rgba(140,225,255,0)');
+  grd.addColorStop(.5,`rgba(215,250,255,${.85*k})`);
+  grd.addColorStop(1,'rgba(140,225,255,0)');
+  ctx.strokeStyle = grd;
+  ctx.lineWidth = o.width*.55;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-o.length*.5,0); ctx.lineTo(o.length*.5,0); ctx.stroke();
+  ctx.strokeStyle = `rgba(255,255,255,${.9*k})`;
+  ctx.lineWidth = o.width*.16;
+  ctx.beginPath(); ctx.moveTo(-o.length*.5,0); ctx.lineTo(o.length*.5,0); ctx.stroke();
+  // sparks along the beam
+  for(let i=0;i<7;i++){
+    const x = -o.length*.5 + ((t*520 + i*o.length/7) % o.length);
+    const y = Math.sin(t*14 + i)*o.width*.32;
+    ctx.fillStyle = `rgba(230,252,255,${.7*k})`;
+    ctx.fillRect(x, y, 3, 3);
+  }
+  ctx.restore();
+}
 function drawGravityWell(g,t){
   ctx.save();
   ctx.translate(g.x, g.y);
@@ -6298,6 +7024,11 @@ function render(t){
   for(const ms of (game.missiles||[])) if(visible(ms.x,ms.y,40)) drawMissile(ms,t);
   for(const sh of (game.shells||[])) if(visible(sh.x,sh.y,40)) drawShell(sh,t);
   for(const st of (game.strikes||[])) if(visible(st.x,st.y,st.radius+40)) drawStrikeMark(st,t);
+  for(const h of (game.holes||[])) if(visible(h.x,h.y,h.r+40)) drawHole(h,t);
+  for(const tot of (game.totems||[])) if(visible(tot.x,tot.y,tot.radius+20)) drawTotem(tot,t);
+  for(const m of (game.mines2||[])) if(visible(m.x,m.y,40)) drawMine2(m,t);
+  for(const w of (game.shockwaves||[])) if(visible(w.x,w.y,w.length+40)) drawShockwave(w,t);
+  for(const o of (game.orbitals||[])) if(visible(o.x,o.y,o.length*.6+40)) drawOrbital(o,t);
   for(const m of game.minions) if(visible(m.x,m.y,80)) drawMinion(m,t);
   for(const d of game.drones) if(visible(d.x,d.y,80)) drawDrone(d,t);
   for(const w of game.wisps) if(visible(w.x,w.y,80)) drawWisp(w,t);
