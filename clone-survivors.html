@@ -57,6 +57,11 @@ canvas{touch-action:none}
 .upgrade-card.summon:hover{border-color:#d8ccff;background:linear-gradient(160deg,#35304f,#252438)}
 .upgrade-card.summon .card-icon{color:#d9ccff;text-shadow:0 0 18px #b9a8ff99}
 .upgrade-card.summon .card-index{color:#b7a9e8}
+.upgrade-card.stack{border-color:#d6a13f;background:linear-gradient(160deg,#3a3020,#282116)}
+.upgrade-card.stack:hover{border-color:#ffd479;background:linear-gradient(160deg,#4a3d26,#33291a)}
+.upgrade-card.stack .card-icon{color:#ffd479;text-shadow:0 0 18px #ffb03399}
+.upgrade-card.stack .card-index{color:#e8bf76}
+.ars-count.stack{color:#ffd479;border-color:#d6a13f88}
 .upgrade-card.onkill{border-color:#c05a6a;background:linear-gradient(160deg,#3a2026,#28181c)}
 .upgrade-card.onkill:hover{border-color:#ff9aae;background:linear-gradient(160deg,#4a2730,#332026)}
 .upgrade-card.onkill .card-icon{color:#ff9aae;text-shadow:0 0 18px #ff5f7a99}
@@ -255,7 +260,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
 @media (pointer:coarse){body.immersive .hud-right{margin-top:30px}}
 
 </style>
-  <meta name="build-version" content="1.7.0" />
+  <meta name="build-version" content="1.8.0" />
 </head>
 <body>
   <div class="app">
@@ -677,8 +682,68 @@ const STATS = [
   {id:'regen', icon:'✚', name:'リジェネレーション', tag:'STAT',
    levels:['時間とともにHPが回復。','回復量が増える。','覚醒：回復量がさらに増加。']},
   {id:'dash', icon:'»', name:'クイックステップ', tag:'STAT',
-   levels:['ダッシュの再使用時間が短縮。','さらに短縮。','覚醒：ほぼ連続で使える。']}
+   levels:['ダッシュの再使用時間が短縮。','さらに短縮。','覚醒：ほぼ連続で使える。']},
+
+  /* ------------- KILL STACK family: grows with every kill --------- *
+   * The card value is the growth rate; the bonus itself accumulates    *
+   * for the rest of the run and is stored in fighter.stacks.           */
+  {id:'frenzyrate', icon:'⟳', name:'キリングスピード', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに攻撃速度が永久に +1.5%。',
+     '敵を1体倒すごとに攻撃速度が永久に +3%。',
+     '覚醒：敵を1体倒すごとに攻撃速度が永久に +5%（上限なし）。']},
+  {id:'vitalkill', icon:'❤', name:'キリングバイタリティ', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに最大HPが永久に +1。',
+     '敵を1体倒すごとに最大HPが永久に +2。',
+     '覚醒：敵を1体倒すごとに最大HPが永久に +3.5（HPも同量回復）。']},
+  {id:'powerkill', icon:'✹', name:'キリングパワー', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに攻撃力が永久に +1%。',
+     '敵を1体倒すごとに攻撃力が永久に +2%。',
+     '覚醒：敵を1体倒すごとに攻撃力が永久に +3.5%。']},
+  {id:'speedkill', icon:'➤', name:'キリングステップ', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに移動速度が永久に +0.5。',
+     '敵を1体倒すごとに移動速度が永久に +1。',
+     '覚醒：敵を1体倒すごとに移動速度が永久に +1.8（上限あり）。']},
+  {id:'armorkill', icon:'⛨', name:'キリングアーマー', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに被ダメージが永久に -0.2%（最大30%）。',
+     '敵を1体倒すごとに被ダメージが永久に -0.35%（最大45%）。',
+     '覚醒：敵を1体倒すごとに被ダメージが永久に -0.5%（最大60%）。']},
+  {id:'rangenkill', icon:'◎', name:'キリングレンジ', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに射程が永久に +0.6。',
+     '敵を1体倒すごとに射程が永久に +1.2。',
+     '覚醒：敵を1体倒すごとに射程が永久に +2。']},
+  {id:'regenkill', icon:'✚', name:'キリングリジェネ', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに毎秒回復が永久に +0.05。',
+     '敵を1体倒すごとに毎秒回復が永久に +0.10。',
+     '覚醒：敵を1体倒すごとに毎秒回復が永久に +0.18。']},
+  {id:'luckkill', icon:'✦', name:'キリングラック', tag:'STACK',
+   levels:[
+     '敵を1体倒すごとに獲得XPが永久に +0.4%。',
+     '敵を1体倒すごとに獲得XPが永久に +0.8%。',
+     '覚醒：敵を1体倒すごとに獲得XPが永久に +1.3%。']}
 ];
+
+/* per-kill growth for each STACK card, indexed by card level (0 = not owned) */
+const KILL_GROWTH = {
+  frenzyrate: [0, .015, .030, .050],
+  vitalkill:  [0, 1,    2,    3.5 ],
+  powerkill:  [0, .010, .020, .035],
+  speedkill:  [0, .5,   1,    1.8 ],
+  armorkill:  [0, .002, .0035,.005],
+  rangenkill: [0, .6,   1.2,  2   ],
+  regenkill:  [0, .05,  .10,  .18 ],
+  luckkill:   [0, .004, .008, .013]
+};
+const KILL_CAPS = {
+  armorkill: .60,
+  speedkill: 90
+};
 
 const HEALS = [
   {id:'heal', icon:'✚', name:'応急処置', levels:['HPを30回復する。']},
@@ -726,18 +791,58 @@ const threshold = f => 100 + (f.level-1)*60;
 function stat(f){
   const n = id => f.upgrades[id]||0;
   const pw = n('power');
-  const dmgMul = 1 + pw*.20 + (pw>=3?.45:0);
+  /* permanent bonuses earned by the KILL STACK cards */
+  const st = f.stacks || {};
+  const stackAtk   = st.atk   || 0;   // attack speed %
+  const stackDmg   = st.dmg   || 0;   // damage %
+  const stackSpeed = st.spd   || 0;   // flat move speed
+  const stackRange = st.rng   || 0;   // flat range
+  const stackRegen = st.reg   || 0;   // hp / sec
+  const dmgMul = (1 + pw*.20 + (pw>=3?.45:0)) * (1 + stackDmg);
   return {
     damage: 18*dmgMul,
     dmgMul,
-    rate: .62,
-    speed: (132 + n('speed')*19 + (n('speed')>=3?22:0)) * (f.haste > 0 ? 1.18 : 1),
-    regen: n('regen')*.6 + (n('regen')>=3?1.1:0),
+    rate: .62 / (1 + stackAtk),
+    speed: (132 + n('speed')*19 + (n('speed')>=3?22:0) + stackSpeed) * (f.haste > 0 ? 1.18 : 1),
+    regen: n('regen')*.6 + (n('regen')>=3?1.1:0) + stackRegen,
     bulletSpeed: 340 + n('bullet')*62,
-    range: 400*(1 + n('bullet')*.14 + (n('bullet')>=3?.18:0)),
+    range: (400*(1 + n('bullet')*.14 + (n('bullet')>=3?.18:0))) + stackRange,
     dashCooldown: Math.max(1.1, 3 - n('dash')*.45 - (n('dash')>=3?.35:0)),
     healMul: 1 + n('vital')*.25
   };
+}
+
+/* apply one kill's worth of KILL STACK growth to a fighter */
+function addKillStacks(f){
+  if(!f || f.level === undefined) return;
+  const w = f.weapons || {};
+  if(!f.stacks) f.stacks = {};
+  const st = f.stacks;
+  let touched = false;
+  for(const id in KILL_GROWTH){
+    const lv = w[id] || 0;
+    if(!lv) continue;
+    const inc = KILL_GROWTH[id][Math.min(lv,3)];
+    switch(id){
+      case 'frenzyrate': st.atk = (st.atk||0) + inc; break;
+      case 'vitalkill':
+        st.hpv = (st.hpv||0) + inc;
+        f.maxHp += inc;
+        f.hp = Math.min(f.maxHp, f.hp + inc);
+        break;
+      case 'powerkill':  st.dmg = (st.dmg||0) + inc; break;
+      case 'speedkill':
+        st.spd = Math.min(KILL_CAPS.speedkill, (st.spd||0) + inc); break;
+      case 'armorkill':
+        st.arm = Math.min(KILL_CAPS.armorkill, (st.arm||0) + inc); break;
+      case 'rangenkill': st.rng = (st.rng||0) + inc; break;
+      case 'regenkill':  st.reg = (st.reg||0) + inc; break;
+      case 'luckkill':   st.xp  = (st.xp||0)  + inc; break;
+    }
+    f.killStacks = (f.killStacks||0) + 1;
+    touched = true;
+  }
+  return touched;
 }
 
 function weaponLevel(f,id){ return f.weapons[id]||0; }
@@ -751,7 +856,8 @@ function cardPool(f){
       level:lv, desc:d.levels[Math.min(lv,2)], burst:lv===0});
   }
   for(const d of STATS){
-    const lv = f.upgrades[d.id]||0;
+    // STACK cards keep their level in f.weapons, ordinary stats in f.upgrades
+    const lv = (KILL_GROWTH[d.id] !== undefined) ? (f.weapons[d.id]||0) : (f.upgrades[d.id]||0);
     if(lv < 3) pool.push({id:d.id, icon:d.icon, name:d.name, kind:'stat', tag:d.tag, level:lv,
       desc:d.levels[Math.min(lv,2)]});
   }
@@ -788,6 +894,18 @@ function applyCard(f,id){
     if(lv === 0 && cdKey && f.cd[cdKey] !== undefined) f.cd[cdKey] = .45;
     if(lv === 0 && id === 'turret') f.cd.turret = .1;
     if(id === 'drone') syncDrones(f);
+    return;
+  }
+  if(KILL_GROWTH[id] !== undefined){
+    // STACK cards live in f.weapons so armoury/level display keeps working
+    const lv = f.weapons[id] || 0;
+    if(lv >= 3) return;
+    f.weapons[id] = lv + 1;
+    if(!f.stacks) f.stacks = {};
+    if(id === 'vitalkill' && lv === 0){
+      // seed a couple of stacks so the card feels immediate
+      for(let i=0;i<3;i++) addKillStacks(f);
+    }
     return;
   }
   const lv = f.upgrades[id]||0;
@@ -866,7 +984,7 @@ function updateArsenal(){
   const sig = owned.map(o=>o.icon+o.lv).join('|')
     + '#' + (game.minions.length+game.wisps.length+game.drones.length) + '/' + game.hazards.length
     + '@' + (game.boss ? Math.ceil(game.boss.hp) : 0) + '/' + (game.boss ? game.boss.maxHp : 0)
-    + '+' + game.eliteCount;
+    + '+' + game.eliteCount + '~' + (game.player.killStacks||0);
   if(sig === game.arsenalSig) return;
   game.arsenalSig = sig;
   if(!owned.length){
@@ -879,7 +997,8 @@ function updateArsenal(){
   }).join('')
     + `<span class="ars-count" title="召喚中のユニット / 設置中のトラップ">⚔${game.minions.length+game.wisps.length+game.drones.length} ◈${game.hazards.length}</span>`
     + (game.eliteCount ? `<span class="ars-count elite" title="撃破したエリート">★${game.eliteCount}</span>` : '')
-    + (game.frenzy > 0 ? `<span class="ars-count frenzy" title="一定時間ダメージ上昇">FRENZY ${game.frenzy.toFixed(1)}</span>` : '');
+    + (game.frenzy > 0 ? `<span class="ars-count frenzy" title="一定時間ダメージ上昇">FRENZY ${game.frenzy.toFixed(1)}</span>` : '')
+    + (game.player.killStacks ? `<span class="ars-count stack" title="撃破で積み上がった永続ボーナス">⟳${game.player.killStacks}</span>` : '');
 }
 function notice(title,sub){
   const el = $('announcement');
@@ -902,7 +1021,8 @@ function showCards(){
   box.replaceChildren();
   availableCards(game.player).forEach((card,i)=>{
     const lv = card.kind==='heal' ? 0 : card.level;
-    const kindLabel = card.kind==='weapon' ? (card.tag || 'WEAPON')
+    const kindLabel = card.tag === 'STACK' ? 'STACK'
+      : card.kind==='weapon' ? (card.tag || 'WEAPON')
       : card.kind==='stat' ? 'UPGRADE' : 'RECOVERY';
     const cls = 'upgrade-card'
       + (card.kind==='weapon' ? ' weapon' : '')
@@ -2814,6 +2934,8 @@ function hurt(t, amount, source){
   }
   /* awakened guardian shield: fighters (never enemies) soak part of the hit */
   if(t.shield > 0 && t.level !== undefined) amount *= .62;
+  /* KILL ARMOUR: every kill makes you a little harder to hurt */
+  if(t.level !== undefined && t.stacks && t.stacks.arm) amount *= (1 - t.stacks.arm);
   /* cursed enemies take extra damage from everything */
   if(t.curseAmp && t.level === undefined){
     amount *= 1 + t.curseAmp;
@@ -2873,7 +2995,9 @@ function hurt(t, amount, source){
            (Clones level through their own kills and pickups, never the
            player's bar.) */
         if(killer && killer.level !== undefined && killer.alive){
-          grantXp(killer, t.xp);
+          const luck = (killer.stacks && killer.stacks.xp) || 0;
+          grantXp(killer, t.xp * (1 + luck));
+          addKillStacks(killer);        // permanent per-kill growth cards
         }
       }
     }
