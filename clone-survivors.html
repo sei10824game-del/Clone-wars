@@ -260,7 +260,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
 @media (pointer:coarse){body.immersive .hud-right{margin-top:30px}}
 
 </style>
-  <meta name="build-version" content="1.8.0" />
+  <meta name="build-version" content="1.9.0" />
 </head>
 <body>
   <div class="app">
@@ -667,7 +667,56 @@ const WEAPON_SPEC = {
   overkill:[
     {radius:110, splash:.35, jumps:2},
     {radius:145, splash:.55, jumps:3},
-    {radius:180, splash:.75, jumps:4}]
+    {radius:180, splash:.75, jumps:4}],
+  homing:[
+    {count:1, cd:1.5, dmg:1.1, radius:56, speed:230},
+    {count:2, cd:1.3, dmg:1.3, radius:70, speed:250},
+    {count:4, cd:1.0, dmg:1.5, radius:82, speed:280}],
+  airstrike:[
+    {cd:5.0, spots:1, dmg:1.6, radius:92},
+    {cd:4.2, spots:3, dmg:1.9, radius:104},
+    {cd:3.4, spots:5, dmg:2.2, radius:118}],
+  gravity:[
+    {cd:7.0, radius:190, pull:260, duration:1.6},
+    {cd:5.8, radius:230, pull:340, duration:2.0},
+    {cd:4.8, radius:270, pull:420, duration:2.4}],
+  lifelink:[
+    {leech:.06, killHeal:0},
+    {leech:.10, killHeal:0},
+    {leech:.14, killHeal:4}],
+  /* pure stats use one row; value fields are read by stat() */
+  berserk:[
+    {max:.25, speed:0},
+    {max:.45, speed:0},
+    {max:.70, speed:1}],
+  glass:[
+    {dmg:.45, hpPenalty:.20},
+    {dmg:.80, hpPenalty:.25},
+    {dmg:1.30, hpPenalty:.30}],
+  thorns:[
+    {cd:6.0, charges:1, reflect:0},
+    {cd:4.5, charges:1, reflect:0},
+    {cd:3.5, charges:2, reflect:.6}],
+  summoner:[
+    {chance:.20, max:2, hpMul:.5, dmgMul:.6},
+    {chance:.40, max:3, hpMul:.8, dmgMul:.9},
+    {chance:1.0, max:5, hpMul:1.0, dmgMul:1.2}],
+  lightning:[
+    {cd:2.2, bolts:3, dmg:.55, radius:300},
+    {cd:1.8, bolts:5, dmg:.65, radius:360},
+    {cd:1.4, bolts:7, dmg:.75, radius:420}],
+  cannon:[
+    {cd:2.0, dmg:2.6, radius:74, speed:320, split:0},
+    {cd:1.6, dmg:3.2, radius:90, speed:340, split:0},
+    {cd:1.3, dmg:3.8, radius:106, speed:360, split:3}],
+  spirit:[
+    {dmgMul:.25, hpMul:.3, recall:1},
+    {dmgMul:.45, hpMul:.55, recall:1},
+    {dmgMul:.65, hpMul:.8,  recall:1}],
+  rebirth:[
+    {hp:.50, knock:0},
+    {hp:.75, knock:0},
+    {hp:1.0, knock:1}]
 };
 
 const STATS = [
@@ -726,7 +775,68 @@ const STATS = [
    levels:[
      '敵を1体倒すごとに獲得XPが永久に +0.4%。',
      '敵を1体倒すごとに獲得XPが永久に +0.8%。',
-     '覚醒：敵を1体倒すごとに獲得XPが永久に +1.3%。']}
+     '覚醒：敵を1体倒すごとに獲得XPが永久に +1.3%。']},
+  /* ============ SYSTEM FAMILIES — new mechanics ============ */
+  {id:'homing', icon:'➹', name:'ホーミングミサイル', tag:'RANGED',
+   levels:[
+     '敵を追尾するミサイルを撃つ。外れない。',
+     '同時発射数が2発に増え、爆発範囲が広がる。',
+     '覚醒：4発になり、撃ち漏らした敵を追いかける。']},
+  {id:'airstrike', icon:'⌁', name:'エアストライク', tag:'RANGED',
+   levels:[
+     '画面上の敵集団に爆撃を要請する。',
+     '爆撃地点が3か所に増える。',
+     '覚醒：爆撃が5か所になり、焼夷弾が残る。']},
+  {id:'gravity', icon:'◉', name:'グラビティウェル', tag:'UTILITY',
+   levels:[
+     '敵を1か所に引き寄せて固める。',
+     '範囲と引力が上がる。',
+     '覚醒：引き寄せた敵を爆発で吹き飛ばす。']},
+  {id:'lifelink', icon:'⇄', name:'ライフリンク', tag:'UTILITY',
+   levels:[
+     '与えたダメージの一部を自分のHPに変換する。',
+     '吸収率が上がる。',
+     '覚醒：撃破時に追加で回復する。']},
+  {id:'berserk', icon:'⚔', name:'バーサーク', tag:'STAT',
+   levels:[
+     'HPが減るほど攻撃力が上がる（最大+25%）。',
+     '最大+45%まで強化。',
+     '覚醒：最大+70%になり、低HPで移動速度も上昇。']},
+  {id:'glass', icon:'◈', name:'グラスキャノン', tag:'STAT',
+   levels:[
+     '攻撃力 +45%、最大HP -20%。',
+     '攻撃力 +80%、最大HP -25%。',
+     '覚醒：攻撃力 +130%、最大HP -30%。']},
+  {id:'thorns', icon:'✱', name:'リフレクトバリア', tag:'UTILITY',
+   levels:[
+     '一定時間ごとにバリアを張り、1回のダメージを無効化する。',
+     'バリアの回転が速くなる。',
+     '覚醒：バリアが2枚になり、近接攻撃者にダメージを返す。']},
+  {id:'summoner', icon:'☗', name:'ネクロマンサー', tag:'SUMMON',
+   levels:[
+     '倒した敵が低確率でスケルトンとなり、永続で付き従う。',
+     '確率とスケルトンの強さが上がる。',
+     '覚醒：必ず1体が蘇り、最大5体まで率いる。']},
+  {id:'lightning', icon:'ϟ', name:'サンダーストーム', tag:'RANGED',
+   levels:[
+     '空から無数の雷が落ち、敵を次々に撃つ。',
+     '落雷数と範囲が増える。',
+     '覚醒：雷が敵を麻痺させ、連鎖する。']},
+  {id:'cannon', icon:'◍', name:'ヘビーキャノン', tag:'RANGED',
+   levels:[
+     '低速だが超高威力の砲弾を撃つ。着弾で爆発する。',
+     '装填が早くなり爆発範囲が広がる。',
+     '覚醒：砲弾が着弾点で3つに分裂する。']},
+  {id:'spirit', icon:'✧', name:'スピリットボンド', tag:'UTILITY',
+   levels:[
+     '分身（クローン）の攻撃力を上げ、自分の近くに呼び寄せる。',
+     'クローンの攻撃力と耐久がさらに上がる。',
+     '覚醒：クローンが倒れたとき、その場で爆発して敵を巻き込む。']},
+  {id:'rebirth', icon:'♥', name:'リバース', tag:'STAT',
+   levels:[
+     '1回だけ致死ダメージを耐え、HP50%で復活する。',
+     '復活時のHPが75%になる。',
+     '覚醒：復活時に周囲の敵を吹き飛ばし、無敵時間が延びる。']}
 ];
 
 /* per-kill growth for each STACK card, indexed by card level (0 = not owned) */
@@ -763,7 +873,8 @@ function fighter(x,y,clone=false){
     upgrades:{}, weapons:{rifle:1},
     cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0, wisp:0, mine:0, spike:0, poison:0,
         railgun:0, ricochet:0, flak:0, holy:0, boomerang:0, turret:0, guardian:0, vortex:0, beam:0, blizzard:0,
-        cloak:0, decoy:0, chrono:0, brainwash:0, terror:0, curse:0, pacify:0},
+        cloak:0, decoy:0, chrono:0, brainwash:0, terror:0, curse:0, pacify:0,
+        homing:0, airstrike:0, gravity:0, thorns:0, lightning:0, cannon:0},
     bladesBack:[], torusCd:0, swingAnim:0, aimAngle:-Math.PI/2, face:1, shield:0,
     invisible:0, cloakCd:0, haste:0, thornCd:0,
     orbitPhase:rand(0,TAU), blades:[],
@@ -779,6 +890,7 @@ function newGame(){
     state:'ready', stage:1, time:30, elapsed:0, kills:0,
     player:fighter(WORLD_W/2, WORLD_H/2), clones:[], enemies:[], bullets:[], minions:[],
     drones:[], wisps:[], hazards:[], boomerangs:[], turrets:[], decoys:[],
+    missiles:[], strikes:[], shells:[], gravityWells:[], skeletons:[],
     particles:[], texts:[], beams:[], rings:[], sparks:[], drops:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:'',
     cooldown:0, cooldown0:5, roundReady:false, roundAnchor:{x:0,y:0}, pendingStage:0,
@@ -789,7 +901,7 @@ function newGame(){
 const threshold = f => 100 + (f.level-1)*60;
 
 function stat(f){
-  const n = id => f.upgrades[id]||0;
+  const n = id => (f.upgrades||{})[id]||0;
   const pw = n('power');
   /* permanent bonuses earned by the KILL STACK cards */
   const st = f.stacks || {};
@@ -798,7 +910,18 @@ function stat(f){
   const stackSpeed = st.spd   || 0;   // flat move speed
   const stackRange = st.rng   || 0;   // flat range
   const stackRegen = st.reg   || 0;   // hp / sec
-  const dmgMul = (1 + pw*.20 + (pw>=3?.45:0)) * (1 + stackDmg);
+  let dmgMul = (1 + pw*.20 + (pw>=3?.45:0)) * (1 + stackDmg);
+  /* berserk: the lower your HP, the harder you hit */
+  const bers = (f.weapons && f.weapons.berserk) ? WEAPON_SPEC.berserk[f.weapons.berserk-1] : null;
+  if(bers){
+    const missing = 1 - clamp(f.hp/Math.max(1,f.maxHp), 0, 1);
+    dmgMul *= 1 + bers.max * missing;
+  }
+  /* glass cannon: big damage, smaller health pool */
+  const glass = (f.weapons && f.weapons.glass) ? WEAPON_SPEC.glass[f.weapons.glass-1] : null;
+  if(glass) dmgMul *= 1 + glass.dmg;
+  /* spirit bond: clones hit harder when their parent owns the card */
+  if(f.clone && f.spiritBuff) dmgMul *= 1 + f.spiritBuff;
   return {
     damage: 18*dmgMul,
     dmgMul,
@@ -882,6 +1005,27 @@ function applyCard(f,id){
     f.hp = Math.min(f.maxHp, f.hp + (id==='heal3'?50:id==='heal2'?40:30));
     return;
   }
+  if(id === 'glass' || id === 'berserk' || id === 'rebirth' || id === 'lifelink' || id === 'summoner' || id === 'spirit'){
+    // passive system cards: stored in f.weapons, no cooldown
+    const lv = f.weapons[id] || 0;
+    if(lv >= 3) return;
+    f.weapons[id] = lv + 1;
+    if(id === 'glass'){
+      // re-apply the HP penalty based on the new level
+      const spec = WEAPON_SPEC.glass[f.weapons[id]-1];
+      const base = f.baseMaxHp || f.maxHp;
+      if(!f.baseMaxHp) f.baseMaxHp = f.maxHp;
+      f.maxHp = Math.max(30, Math.round(f.baseMaxHp * (1 - spec.hpPenalty)));
+      f.hp = Math.min(f.hp, f.maxHp);
+    }
+    if(id === 'rebirth' && f.weapons[id] === 1) f.revives = 1;
+    if(id === 'lifelink'){
+      const lspec = WEAPON_SPEC.lifelink[f.weapons[id]-1];
+      f.leech = lspec.leech;
+      f.leechKill = lspec.killHeal;
+    }
+    return;
+  }
   if(WEAPON_SPEC[id]){
     const lv = weaponLevel(f,id);
     if(lv >= 3) return;
@@ -890,7 +1034,9 @@ function applyCard(f,id){
                    railgun:'railgun', ricochet:'ricochet', flak:'flak', holy:'holy',
                    boomerang:'boomerang', turret:'turret', vortex:'vortex', beam:'beam',
                    blizzard:'blizzard', cloak:'cloak', decoy:'decoy', chrono:'chrono',
-                   brainwash:'brainwash', terror:'terror', curse:'curse', pacify:'pacify'}[id];
+                   brainwash:'brainwash', terror:'terror', curse:'curse', pacify:'pacify',
+                   homing:'homing', airstrike:'airstrike', gravity:'gravity', thorns:'thorns',
+                   lightning:'lightning', cannon:'cannon'}[id];
     if(lv === 0 && cdKey && f.cd[cdKey] !== undefined) f.cd[cdKey] = .45;
     if(lv === 0 && id === 'turret') f.cd.turret = .1;
     if(id === 'drone') syncDrones(f);
@@ -1873,6 +2019,7 @@ function allyList(){
     if(!f || !f.alive) continue;
     for(const gd of (f.guardians||[])) if(gd.x !== undefined) out.push(gd);
   }
+  for(const sk of (game.skeletons||[])) if(sk.alive) out.push(sk);
   /* decoys deliberately read as juicy targets, so enemies chase them first */
   for(const d of (game.decoys||[])) if(d.alive) out.push(d);
   return out;
@@ -2285,6 +2432,34 @@ function updateWeapons(f,dt,target){
   if(w.pacify){
     f.cd.pacify -= dt;
     if(f.cd.pacify <= 0) pacifyCast(f);
+  }
+  if(w.homing){
+    f.cd.homing -= dt;
+    if(f.cd.homing <= 0 && target && dist(f,target) <= 480) homingFire(f,target,s);
+  }
+  if(w.airstrike){
+    f.cd.airstrike -= dt;
+    if(f.cd.airstrike <= 0 && target) airstrikeCast(f);
+  }
+  if(w.gravity){
+    f.cd.gravity -= dt;
+    if(f.cd.gravity <= 0) gravityCast(f);
+  }
+  if(w.lightning){
+    f.cd.lightning -= dt;
+    if(f.cd.lightning <= 0) lightningCast(f);
+  }
+  if(w.cannon){
+    f.cd.cannon -= dt;
+    const cspec = WEAPON_SPEC.cannon[w.cannon-1];
+    if(f.cd.cannon <= 0 && target && dist(f,target) <= 470) cannonFire(f,target,s);
+  }
+  if(w.thorns) barrierTick(f, dt);
+  if(w.spirit) spiritTick(f, dt);
+  if(w.lifelink){
+    const lspec = WEAPON_SPEC.lifelink[w.lifelink-1];
+    f.leech = lspec.leech;
+    f.leechKill = lspec.killHeal;
   }
 }
 
@@ -2843,6 +3018,311 @@ function overkillLeap(killer, x, y, dmg, radius, jumps, level, skip, depth){
   }
 }
 
+
+/* ================================================================== *
+ *  SYSTEM CARDS — homing, airstrike, gravity, lifelink, …            *
+ * ================================================================== */
+/* --- homing missiles --------------------------------------------- */
+function homingFire(f, target, s){
+  const lv = weaponLevel(f,'homing'), spec = WEAPON_SPEC.homing[lv-1];
+  for(let i=0;i<spec.count;i++){
+    const a = Math.atan2(target.y-f.y, target.x-f.x) + (i-(spec.count-1)/2)*.4;
+    game.missiles = game.missiles || [];
+    if(game.missiles.length > 90) break;
+    game.missiles.push({
+      owner:f, lv, x:f.x, y:f.y, ang:a, speed:spec.speed,
+      targetRef:target, life:3.2, maxLife:3.2, dmg:s.damage*spec.dmg,
+      radius:spec.radius, alive:true, trail:0
+    });
+  }
+  f.cd.homing = spec.cd;
+  f.muzzle = .14;
+  f.swingAnim = .22;
+}
+function missileTick(dt){
+  game.missiles = game.missiles || [];
+  for(const m of game.missiles){
+    if(!m.alive) continue;
+    m.life -= dt;
+    m.trail += dt;
+    // re-acquire if the original target died
+    if(!m.targetRef || !m.targetRef.alive){
+      let best = null, bd = 460;
+      for(const e of game.enemies){
+        if(!e.alive || e.charm > 0) continue;
+        const d = dist(m,e);
+        if(d < bd){ bd = d; best = e; }
+      }
+      m.targetRef = best;
+    }
+    if(m.targetRef){
+      const want = Math.atan2(m.targetRef.y-m.y, m.targetRef.x-m.x);
+      let diff = ((want - m.ang + Math.PI*3) % (Math.PI*2)) - Math.PI;
+      m.ang += clamp(diff, -5*dt, 5*dt);
+    }
+    m.x += Math.cos(m.ang)*m.speed*dt;
+    m.y += Math.sin(m.ang)*m.speed*dt;
+    if(m.trail > .03){ m.trail = 0; particles(m.x, m.y, '#ffb066', 1, .3); }
+    if(m.life <= 0){ m.alive = false; }
+    for(const e of game.enemies){
+      if(!e.alive || e.charm > 0) continue;
+      if(dist(m,e) < (e.r||13) + 9){
+        for(const o of game.enemies){
+          if(o.alive && dist(m,o) < m.radius) hurt(o, m.dmg, m.owner);
+        }
+        game.rings.push({x:m.x,y:m.y,r:8,maxR:m.radius,life:.35,max:.35,color:'#ffb066',width:4});
+        particles(m.x,m.y,'#ffca8a',10,1.2);
+        m.alive = false;
+        break;
+      }
+    }
+  }
+  game.missiles = game.missiles.filter(m=>m.alive);
+}
+/* --- airstrike: bombs fall on the biggest clusters --------------- */
+function airstrikeCast(f){
+  const lv = weaponLevel(f,'airstrike'), spec = WEAPON_SPEC.airstrike[lv-1];
+  const s = stat(f);
+  // score candidate spots by how many enemies sit nearby
+  const cands = [];
+  for(const e of game.enemies){
+    if(!e.alive || e.charm > 0) continue;
+    let count = 0;
+    for(const o of game.enemies) if(o.alive && dist(e,o) < spec.radius) count++;
+    cands.push([count, e.x, e.y]);
+  }
+  cands.sort((a,b)=>b[0]-a[0]);
+  const chosen = [];
+  for(const c of cands){
+    if(chosen.length >= spec.spots) break;
+    if(chosen.some(p => Math.hypot(p.x-c[1], p.y-c[2]) < spec.radius*.8)) continue;
+    chosen.push({x:c[1], y:c[2]});
+  }
+  if(!chosen.length) chosen.push({x:f.x+rand(-80,80), y:f.y+rand(-80,80)});
+  game.strikes = game.strikes || [];
+  for(const c of chosen){
+    game.strikes.push({
+      owner:f, lv, x:c.x, y:c.y, radius:spec.radius,
+      dmg:s.damage*spec.dmg, delay:.7, fire:lv>=3, alive:true
+    });
+  }
+  f.cd.airstrike = spec.cd;
+  f.cast = .3;
+  notice('AIR STRIKE','爆撃機が進入…');
+}
+function strikeTick(dt){
+  game.strikes = game.strikes || [];
+  for(const st of game.strikes){
+    if(!st.alive) continue;
+    st.delay -= dt;
+    if(st.delay > 0) continue;
+    st.alive = false;
+    for(const e of game.enemies){
+      if(e.alive && dist(st,e) < st.radius) hurt(e, st.dmg, st.owner);
+    }
+    game.rings.push({x:st.x,y:st.y,r:10,maxR:st.radius,life:.45,max:.45,color:'#ffca8a',width:7});
+    game.rings.push({x:st.x,y:st.y,r:4,maxR:st.radius*.6,life:.3,max:.3,color:'#fff3d0',width:11});
+    particles(st.x, st.y, '#ffb066', 26, 1.8);
+    shake = Math.min(shake+4.5, 8);
+    // awakened: napalm pool left behind
+    if(st.fire){
+      game.hazards.push({
+        kind:'poison', owner:st.owner, lv:3, x:st.x, y:st.y, r:st.radius*.8,
+        dmg:.45, tick:0, tickRate:.45, life:4.0, maxLife:4.0, seed:rand(0,100),
+        alive:true, napalm:true
+      });
+    }
+  }
+  game.strikes = game.strikes.filter(s=>s.alive);
+}
+/* --- gravity well: bunch them up, then slam ---------------------- */
+function gravityCast(f){
+  const lv = weaponLevel(f,'gravity'), spec = WEAPON_SPEC.gravity[lv-1];
+  const cx = f.x + Math.cos(f.aimAngle||0)*120;
+  const cy = f.y + Math.sin(f.aimAngle||0)*120;
+  game.gravityWells = game.gravityWells || [];
+  game.gravityWells.push({
+    owner:f, lv, x:cx, y:cy, r:spec.radius, pull:spec.pull,
+    life:spec.duration, maxLife:spec.duration, alive:true
+  });
+  f.cd.gravity = spec.cd;
+  f.cast = .28;
+  game.rings.push({x:cx,y:cy,r:14,maxR:spec.radius,life:.45,max:.45,color:'#b9a8ff',width:4});
+}
+function gravityTick(dt){
+  game.gravityWells = game.gravityWells || [];
+  for(const g of game.gravityWells){
+    if(!g.alive) continue;
+    g.life -= dt;
+    for(const e of game.enemies){
+      if(!e.alive || e.charm > 0) continue;
+      const d = dist(g,e);
+      if(d < g.r && d > 8){
+        e.x += (g.x-e.x)/d*g.pull*dt;
+        e.y += (g.y-e.y)/d*g.pull*dt;
+        e.stun = Math.max(e.stun, .12);
+      }
+    }
+    if(g.life <= 0){
+      g.alive = false;
+      if(g.lv >= 3){
+        const dmg = 60 * stat(g.owner).dmgMul;
+        for(const e of game.enemies){
+          if(e.alive && dist(g,e) < g.r*.7) hurt(e, dmg, g.owner);
+        }
+        game.rings.push({x:g.x,y:g.y,r:12,maxR:g.r,life:.4,max:.4,color:'#d5c4ff',width:6});
+        particles(g.x,g.y,'#d5c4ff',22,1.6);
+        shake = Math.min(shake+3, 6);
+      }
+    }
+  }
+  game.gravityWells = game.gravityWells.filter(g=>g.alive);
+}
+/* --- lightning storm: bolts rain on random enemies --------------- */
+function lightningCast(f){
+  const lv = weaponLevel(f,'lightning'), spec = WEAPON_SPEC.lightning[lv-1];
+  const s = stat(f);
+  const pool = game.enemies.filter(e=>e.alive && e.charm<=0 && dist(f,e) < spec.radius);
+  if(!pool.length){ f.cd.lightning = .4; return; }
+  for(let i=0;i<spec.bolts;i++){
+    const e = pool[Math.floor(Math.random()*pool.length)];
+    const dmg = s.damage*spec.dmg;
+    hurt(e, dmg, f);
+    if(lv >= 3) e.stun = Math.max(e.stun, .4);
+    game.beams.push({pts:[{x:e.x+rand(-20,20), y:e.y-420},{x:e.x,y:e.y}],
+      life:.18, max:.18, color:'#fff0a8', width:4, jag:true});
+    particles(e.x, e.y, '#ffe9a3', 6, 1.1);
+  }
+  f.cd.lightning = spec.cd;
+  f.cast = .2;
+  shake = Math.min(shake+1.2, 4);
+}
+/* --- heavy cannon: slow shell with splash ------------------------ */
+function cannonFire(f, target, s){
+  const lv = weaponLevel(f,'cannon'), spec = WEAPON_SPEC.cannon[lv-1];
+  const a = Math.atan2(target.y-f.y, target.x-f.x);
+  f.aimAngle = a;
+  game.shells = game.shells || [];
+  game.shells.push({
+    owner:f, lv, x:f.x, y:f.y, ang:a, speed:spec.speed,
+    life:2.0, maxLife:2.0, dmg:s.damage*spec.dmg, radius:spec.radius,
+    split:spec.split, alive:true
+  });
+  f.cd.cannon = spec.cd;
+  f.muzzle = .2; f.swingAnim = .3;
+  shake = Math.min(shake+1.8, 4);
+}
+function shellTick(dt){
+  game.shells = game.shells || [];
+  const boom = (sh, x, y, radius, dmg, split, depth) => {
+    for(const e of game.enemies){
+      if(e.alive && dist({x,y}, e) < radius) hurt(e, dmg, sh.owner);
+    }
+    game.rings.push({x,y,r:8,maxR:radius,life:.4,max:.4,color:'#ffb066',width:5});
+    particles(x,y,'#ffca8a',14,1.4);
+    shake = Math.min(shake+2.6, 6);
+    if(split && depth < 2){
+      for(let i=0;i<split;i++){
+        const a = i*TAU/split + rand(-.2,.2);
+        const sx = x + Math.cos(a)*40, sy = y + Math.sin(a)*40;
+        for(const e of game.enemies){
+          if(e.alive && dist({x:sx,y:sy}, e) < radius*.55) hurt(e, dmg*.55, sh.owner);
+        }
+        game.rings.push({x:sx,y:sy,r:6,maxR:radius*.55,life:.3,max:.3,color:'#ffca8a',width:3});
+      }
+    }
+  };
+  for(const sh of game.shells){
+    if(!sh.alive) continue;
+    sh.x += Math.cos(sh.ang)*sh.speed*dt;
+    sh.y += Math.sin(sh.ang)*sh.speed*dt;
+    sh.life -= dt;
+    if(sh.life <= 0 || solidAt(sh.x, sh.y, 6)){
+      sh.alive = false;
+      boom(sh, sh.x, sh.y, sh.radius, sh.dmg, sh.split, 0);
+    }
+  }
+  game.shells = game.shells.filter(s=>s.alive);
+}
+/* --- reflect barrier: eats one hit, then recharges ---------------- */
+function barrierTick(f, dt){
+  const lv = weaponLevel(f,'thorns');
+  if(!lv) return;
+  const spec = WEAPON_SPEC.thorns[lv-1];
+  f.barrierCd = (f.barrierCd || 0) - dt;
+  if(f.barrierCd <= 0 && (f.barrierCharges||0) < spec.charges){
+    f.barrierCd = spec.cd;
+    f.barrierCharges = (f.barrierCharges||0) + 1;
+  }
+}
+/* --- necromancer: permanent skeleton retinue --------------------- */
+function summonSkeleton(f, victim){
+  const lv = weaponLevel(f,'summoner');
+  if(!lv) return false;
+  const spec = WEAPON_SPEC.summoner[lv-1];
+  const owned = game.skeletons ? game.skeletons.filter(s=>s.owner===f && s.alive).length : 0;
+  if(owned >= spec.max) return false;
+  if(Math.random() > spec.chance) return false;
+  game.skeletons = game.skeletons || [];
+  game.skeletons.push({
+    owner:f, lv, x:victim.x, y:victim.y, r:12,
+    hp:Math.round((victim.maxHp||30) * spec.hpMul * 1.4),
+    maxHp:Math.round((victim.maxHp||30) * spec.hpMul * 1.4),
+    dmg:(victim.damage||8) * spec.dmgMul,
+    atkCd:.4, hit:0, alive:true, kind:'skeleton', seed:rand(0,100), bob:rand(0,7),
+    life:9999, maxLife:9999
+  });
+  particles(victim.x, victim.y, '#dfe8ff', 12, 1.1);
+  return true;
+}
+function skeletonTick(dt){
+  game.skeletons = game.skeletons || [];
+  for(const sk of game.skeletons){
+    if(!sk.alive) continue;
+    sk.hit = Math.max(0, sk.hit - dt);
+    sk.atkCd = Math.max(0, sk.atkCd - dt);
+    const [t] = nearest(sk);
+    if(t){
+      const d = dist(sk,t);
+      if(d > 20){
+        const sp = 110;
+        let ax = t.x, ay = t.y;
+        if(blockedAhead(sk, t.x, t.y, 16)){
+          const steer = steerAround(sk, t.x, t.y, dt, {repath:1.2});
+          ax = steer.x; ay = steer.y;
+        } else sk.path = null;
+        const dl = Math.hypot(ax-sk.x, ay-sk.y) || 1;
+        const bx = sk.x, by = sk.y;
+        sk.x = clamp(sk.x + (ax-sk.x)/dl*sp*dt, 14, WORLD_W-14);
+        sk.y = clamp(sk.y + (ay-sk.y)/dl*sp*dt, 14, WORLD_H-14);
+        resolveSolid(sk);
+        ensureMoving(sk, bx, by, dt, sp);
+      } else if(sk.atkCd <= 0){
+        hurt(t, sk.dmg, sk.owner);
+        sk.atkCd = .7;
+      }
+    }
+  }
+  game.skeletons = game.skeletons.filter(s=>s.alive);
+}
+/* --- spirit bond: buff + recall the clones ----------------------- */
+function spiritTick(f, dt){
+  const lv = weaponLevel(f,'spirit');
+  if(!lv) return;
+  const spec = WEAPON_SPEC.spirit[lv-1];
+  for(const c of game.clones){
+    if(!c.alive) continue;
+    if(spec.recall && dist(f,c) > 520){
+      // teleport stragglers back into the fight
+      c.x = f.x + rand(-70,70);
+      c.y = f.y + rand(-70,70);
+      particles(c.x, c.y, '#ffcf8a', 10, 1.1);
+      game.rings.push({x:c.x,y:c.y,r:6,maxR:44,life:.35,max:.35,color:'#ffcf8a',width:2});
+    }
+    c.spiritBuff = spec.dmgMul;
+  }
+}
+
 /* --------------------------- boss attacks ------------------------- */
 function bossShot(e, angle, speed, dmg, r, color){
   game.bullets.push({
@@ -2919,6 +3399,19 @@ function damageText(x,y,amount,color){
 function hurt(t, amount, source){
   if(!t || !t.alive) return;
   if(t.invuln > 0) return;
+  /* reflect barrier eats one hit and hurts the attacker back */
+  if(t.level !== undefined && (t.barrierCharges||0) > 0){
+    t.barrierCharges--;
+    const lv = weaponLevel(t,'thorns');
+    const spec = lv ? WEAPON_SPEC.thorns[lv-1] : null;
+    game.rings.push({x:t.x,y:t.y,r:t.r*1.6,maxR:t.r*3.2,life:.28,max:.28,color:'#a8e8ff',width:3});
+    particles(t.x,t.y,'#a8e8ff',10,1);
+    if(spec && spec.reflect > 0 && source){
+      const atk = source.owner || source;
+      if(atk && atk.hp !== undefined && atk !== t) hurt(atk, spec.reflect * amount, t);
+    }
+    return;
+  }
   /* shielder aura: nearby enemies take less damage */
   if(t.hp !== undefined && t.level === undefined && t.owner === undefined &&
      !t.boss && !t.charm && game.enemies){
@@ -2970,10 +3463,40 @@ function hurt(t, amount, source){
   t.hp -= amount;
   t.hit = .12;
   const isEnemy = !isAlly(t);
+  /* lifelink: a slice of the damage you deal comes back as HP */
+  const leechOwner = source ? (source.owner || source) : null;
+  if(isEnemy && leechOwner && leechOwner.leech > 0 && leechOwner.level !== undefined && leechOwner.alive){
+    leechOwner.hp = Math.min(leechOwner.maxHp, leechOwner.hp + amount*leechOwner.leech);
+  }
   damageText(t.x, t.y-(t.r||16), amount, isEnemy?'#ffe8a8':t===game.player?'#ff8f8f':'#ffc79a');
   if(t.clone) t.reward -= amount*.035;
   if(source && source.clone) source.reward += amount*.04;
   particles(t.x, t.y, t.clone?'#ffc27c':t===game.player?'#c8f681':'#ffb0a0', 3, .7);
+  /* rebirth: a lethal blow is survived once, at the card's HP fraction */
+  if(t.hp <= 0 && t.level !== undefined && (t.revives||0) > 0){
+    t.revives--;
+    const lv = weaponLevel(t,'rebirth');
+    const spec = lv ? WEAPON_SPEC.rebirth[lv-1] : {hp:.5, knock:0};
+    t.hp = Math.max(1, t.maxHp * spec.hp);
+    t.invuln = 2.2;
+    game.rings.push({x:t.x,y:t.y,r:20,maxR:220,life:.8,max:.8,color:'#ffd39a',width:6});
+    game.texts.push({x:t.x,y:t.y-46,vy:-18,life:1.6,max:1.6,text:'REBIRTH',color:'#ffd39a',size:18});
+    particles(t.x,t.y,'#ffd39a',30,1.8);
+    shake = Math.min(shake+5, 8);
+    if(spec.knock){
+      for(const e of game.enemies){
+        if(e.alive && dist(t,e) < 240){
+          const d = dist(t,e)||1;
+          e.x = clamp(e.x + (e.x-t.x)/d*90, 14, WORLD_W-14);
+          e.y = clamp(e.y + (e.y-t.y)/d*90, 14, WORLD_H-14);
+          e.stun = Math.max(e.stun, .8);
+          hurt(e, 60, t);
+        }
+      }
+    }
+    if(t === game.player) notice('REBIRTH','致命傷を耐えた');
+    return;
+  }
   if(t.hp <= 0){
     t.alive = false;
     particles(t.x, t.y, t.clone?'#ffc27c':'#ff9d86', isEnemy?14:16, 1.3);
@@ -2998,6 +3521,8 @@ function hurt(t, amount, source){
           const luck = (killer.stacks && killer.stacks.xp) || 0;
           grantXp(killer, t.xp * (1 + luck));
           addKillStacks(killer);        // permanent per-kill growth cards
+          if(killer.leechKill) killer.hp = Math.min(killer.maxHp, killer.hp + killer.leechKill);
+          summonSkeleton(killer, t);    // necromancer retinue
         }
       }
     }
@@ -3013,6 +3538,13 @@ function hurt(t, amount, source){
         kid.splitChild = true;
       }
       particles(t.x, t.y, '#d8a2ff', 12, 1.1);
+    }
+    if(t.clone && t.spiritBuff && weaponLevel(game.player,'spirit') >= 3){
+      for(const e of game.enemies){
+        if(e.alive && dist(t,e) < 130) hurt(e, 70, game.player);
+      }
+      game.rings.push({x:t.x,y:t.y,r:14,maxR:130,life:.45,max:.45,color:'#ffcf8a',width:4});
+      particles(t.x,t.y,'#ffcf8a',18,1.4);
     }
     if(t.clone){
       if(t.state !== null){
@@ -3773,6 +4305,11 @@ function tick(dt){
   updateHazards(dt);
   decoyTick(dt);
   chronoTick(dt);
+  missileTick(dt);
+  strikeTick(dt);
+  shellTick(dt);
+  gravityTick(dt);
+  skeletonTick(dt);
   for(const f of fighters){
     if(f.invisible > 0 || f.haste > 0){
       f.invisible = Math.max(0, f.invisible - dt);
@@ -4701,6 +5238,25 @@ SPR.colossusIdle = [
   '..kMMMMMk..kMMMMMk..'
 ];
 
+/* ---------- skeleton: risen minion ---------- */
+SPR.skeletonIdle = [
+  '....kkkkkk....',
+  '...kwwwwwwk...',
+  '...kwkkkkwk...',
+  '...kwwwwwwk...',
+  '...kwkwwkwk...',
+  '....kwwwwk....',
+  '.....kwwk.....',
+  '..kkkwwwwkkk..',
+  '.kwwkwwwwkwwk.',
+  '.kwk.kwwk.kwk.',
+  '..k..kwwk..k..',
+  '.....kwwk.....',
+  '....kwwwwk....',
+  '...kwwk.kwwk..',
+  '..kwwk...kwwk.'
+];
+
 /* ---------- boss: armoured core with a heavy shell ---------- */
 SPR.bossIdle = [
   '........kkkkkkkk........',
@@ -4841,6 +5397,21 @@ function drawFighter(f,t){
 
   // weapon arm overlay so the kit reads at a glance
   drawFighterArm(f, t, swing, awake);
+
+  // reflect barrier charges
+  if(f.barrierCharges > 0){
+    for(let i=0;i<f.barrierCharges;i++){
+      const a = t*1.6 + i*Math.PI;
+      ctx.save();
+      ctx.rotate(a);
+      ctx.strokeStyle = 'rgba(168,232,255,.85)';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, -2, 26, -.55, .55);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 
   ctx.restore();
 }
@@ -5610,6 +6181,82 @@ function drawBoomerang(bm,t){
   ctx.restore();
 }
 
+/* --- homing missile / cannon shell / skeleton / strike markers --- */
+function drawMissile(ms,t){
+  ctx.save();
+  ctx.translate(ms.x, ms.y);
+  ctx.rotate(ms.ang);
+  glow(GLOW.amber, 0, 0, 26, .55);
+  ctx.fillStyle = '#e8f2ff';
+  ctx.strokeStyle = '#131b16';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(9,0); ctx.lineTo(-2,-4); ctx.lineTo(-4,0); ctx.lineTo(-2,4);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // exhaust
+  ctx.fillStyle = 'rgba(255,176,102,.85)';
+  ctx.beginPath();
+  ctx.moveTo(-4,-2.6); ctx.lineTo(-11 - Math.sin(t*30)*3, 0); ctx.lineTo(-4,2.6);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawShell(sh,t){
+  ctx.save();
+  ctx.translate(sh.x, sh.y);
+  glow(GLOW.amber, 0, 0, 30, .45);
+  ctx.rotate(sh.ang);
+  ctx.fillStyle = '#7e909c';
+  ctx.beginPath(); ctx.ellipse(0,0,8,5,0,0,TAU); ctx.fill();
+  ctx.fillStyle = '#b9c7d1';
+  ctx.beginPath(); ctx.ellipse(2,-1.5,3.4,2,0,0,TAU); ctx.fill();
+  ctx.restore();
+}
+function drawSkeleton(sk,t){
+  ctx.save();
+  ctx.translate(sk.x, sk.y);
+  ctx.fillStyle = 'rgba(6,12,10,.4)';
+  ctx.beginPath(); ctx.ellipse(0,10,9,3.4,0,0,TAU); ctx.fill();
+  glow(GLOW.blue, 0, 0, 34, .28);
+  const img = sprite('skeletonIdle');
+  if(img) blit(img, 0, -2 + Math.sin(t*4+sk.seed)*1.2, (sk.r*2.4)/14, false, 1);
+  if(sk.hit > 0){ ctx.globalAlpha = .5; blit(img, 0, -2, (sk.r*2.4)/14, false, 1); ctx.globalAlpha = 1; }
+  ctx.restore();
+}
+function drawStrikeMark(st,t){
+  ctx.save();
+  ctx.translate(st.x, st.y);
+  const p = 1 - clamp(st.delay/.7, 0, 1);
+  ctx.strokeStyle = `rgba(255,140,110,${.5+p*.5})`;
+  ctx.lineWidth = 2.4;
+  ctx.setLineDash([8,8]);
+  ctx.beginPath(); ctx.arc(0, 0, st.radius*(1.1-p*.1), 0, TAU); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255,200,160,.9)';
+  ctx.lineWidth = 2;
+  const k = 14 + p*10;
+  ctx.beginPath();
+  ctx.moveTo(-k,0); ctx.lineTo(k,0);
+  ctx.moveTo(0,-k); ctx.lineTo(0,k);
+  ctx.stroke();
+  glow(GLOW.red, 0, 0, st.radius*1.2, .12 + p*.3);
+  ctx.restore();
+}
+function drawGravityWell(g,t){
+  ctx.save();
+  ctx.translate(g.x, g.y);
+  const p = clamp(g.life/g.maxLife, 0, 1);
+  glow(GLOW.purple, 0, 0, g.r*1.4, .22*p);
+  for(let i=0;i<4;i++){
+    const rr = g.r*(.2 + i*.22) * (1 - ((t*.7 + i*.25) % 1)*.3);
+    ctx.strokeStyle = `rgba(185,168,255,${.4*p})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, rr, t*(2+i), t*(2+i) + Math.PI*1.5); ctx.stroke();
+  }
+  ctx.fillStyle = `rgba(213,196,255,${.7*p})`;
+  ctx.beginPath(); ctx.arc(0,0,5+Math.sin(t*8)*1.5,0,TAU); ctx.fill();
+  ctx.restore();
+}
+
 /* ------------------------------ render ---------------------------- */
 function render(t){
   ctx.setTransform(1,0,0,1,0,0);
@@ -5641,6 +6288,11 @@ function render(t){
   for(const h of game.hazards) if(visible(h.x,h.y,80)) drawHazard(h,t);
   for(const tu of (game.turrets||[])) if(visible(tu.x,tu.y,90)) drawTurret(tu,t);
   for(const dc of (game.decoys||[])) if(visible(dc.x,dc.y,80)) drawDecoy(dc,t);
+  for(const g of (game.gravityWells||[])) if(visible(g.x,g.y,g.r+40)) drawGravityWell(g,t);
+  for(const sk of (game.skeletons||[])) if(visible(sk.x,sk.y,80)) drawSkeleton(sk,t);
+  for(const ms of (game.missiles||[])) if(visible(ms.x,ms.y,40)) drawMissile(ms,t);
+  for(const sh of (game.shells||[])) if(visible(sh.x,sh.y,40)) drawShell(sh,t);
+  for(const st of (game.strikes||[])) if(visible(st.x,st.y,st.radius+40)) drawStrikeMark(st,t);
   for(const m of game.minions) if(visible(m.x,m.y,80)) drawMinion(m,t);
   for(const d of game.drones) if(visible(d.x,d.y,80)) drawDrone(d,t);
   for(const w of game.wisps) if(visible(w.x,w.y,80)) drawWisp(w,t);
