@@ -138,7 +138,27 @@ const WEAPONS = [
    levels:[
      '周囲に雪を降らせ、範囲内の敵を継続的に凍えさせる。',
      '範囲が広がり、凍結が長く続く。',
-     '覚醒：凍った敵が砕け散り、周囲に氷片を撒き散らす。']}
+     '覚醒：凍った敵が砕け散り、周囲に氷片を撒き散らす。']},
+  {id:'cloak', icon:'◌', name:'ステルスクローク', tag:'UTILITY',
+   levels:[
+     '一定時間姿を消し、敵に狙われなくなる。攻撃は続行する。',
+     '透明時間が伸び、解除時に周囲の敵を怯ませる。',
+     '覚醒：透明中は移動速度と攻撃速度が上昇する。']},
+  {id:'decoy', icon:'❋', name:'デコイビーコン', tag:'SUMMON',
+   levels:[
+     'その場に囮の人形を設置。敵はそちらへ引き寄せられる。',
+     '囮の耐久が上がり、爆発時に周囲を巻き込む。',
+     '覚醒：囮が2体になり、囮を壊した敵を感電させる。']},
+  {id:'chrono', icon:'⏱', name:'クロノフィールド', tag:'UTILITY',
+   levels:[
+     '周囲の時間を遅らせ、敵の動きを大きく鈍らせる。',
+     '範囲と減速率が上昇する。',
+     '覚醒：範囲内の自分の攻撃速度が上がる。']},
+  {id:'thorn', icon:'✧', name:'ソーンアーマー', tag:'UTILITY',
+   levels:[
+     '攻撃してきた敵にダメージを返す棘の鎧をまとう。',
+     '反撃ダメージが増加し、触れた敵を怯ませる。',
+     '覚醒：棘が爆発し、周囲の敵をまとめて吹き飛ばす。']}
 ];
 
 const WEAPON_SPEC = {
@@ -207,9 +227,9 @@ const WEAPON_SPEC = {
     {count:2, hp:150, dmg:.68, rate:.60, range:360, life:20},
     {count:3, hp:180, dmg:.82, rate:.48, range:400, life:24}],
   guardian:[
-    {count:1, radius:70, dmg:.60, beamCd:2.2, block:1},
-    {count:2, radius:80, dmg:.75, beamCd:1.8, block:2},
-    {count:3, radius:92, dmg:.90, beamCd:1.4, block:3}],
+    {count:1, radius:70, dmg:.60, beamCd:2.2, block:1, hp:150},
+    {count:2, radius:80, dmg:.75, beamCd:1.8, block:2, hp:210},
+    {count:3, radius:92, dmg:.90, beamCd:1.4, block:3, hp:280}],
   vortex:[
     {cd:6.0, radius:150, pull:44, duration:2.2, slow:.55},
     {cd:4.8, radius:180, pull:64, duration:2.8, slow:.40},
@@ -221,7 +241,23 @@ const WEAPON_SPEC = {
   blizzard:[
     {cd:3.2, radius:120, dmg:.30, slow:1.2, duration:3.0},
     {cd:2.6, radius:150, dmg:.40, slow:1.8, duration:3.6},
-    {cd:2.0, radius:184, dmg:.52, slow:2.4, duration:4.2}]
+    {cd:2.0, radius:184, dmg:.52, slow:2.4, duration:4.2}],
+  cloak:[
+    {cd:9.0, duration:2.2, speed:1.0,  fear:0},
+    {cd:8.0, duration:3.2, speed:1.0,  fear:120},
+    {cd:6.5, duration:4.2, speed:1.25, fear:150}],
+  decoy:[
+    {cd:6.0, hp:60,  radius:70,  count:1, blast:1.1, shock:0},
+    {cd:5.0, hp:110, radius:86,  count:1, blast:1.4, shock:0},
+    {cd:4.0, hp:170, radius:100, count:2, blast:1.8, shock:1}],
+  chrono:[
+    {cd:7.0, radius:150, slow:.45, duration:2.6, haste:0},
+    {cd:5.8, radius:185, slow:.32, duration:3.2, haste:0},
+    {cd:4.8, radius:220, slow:.24, duration:3.8, haste:1}],
+  thorn:[
+    {dmg:.55, radius:52,  knock:12},
+    {dmg:.80, radius:66,  knock:20},
+    {dmg:1.10, radius:88,  knock:36}]
 };
 
 const STATS = [
@@ -256,8 +292,10 @@ function fighter(x,y,clone=false){
     x, y, clone, hp:100, maxHp:100, level:1, xp:0,
     upgrades:{}, weapons:{rifle:1},
     cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0, wisp:0, mine:0, spike:0, poison:0,
-        railgun:0, ricochet:0, flak:0, holy:0, boomerang:0, turret:0, guardian:0, vortex:0, beam:0, blizzard:0},
+        railgun:0, ricochet:0, flak:0, holy:0, boomerang:0, turret:0, guardian:0, vortex:0, beam:0, blizzard:0,
+        cloak:0, decoy:0, chrono:0},
     bladesBack:[], torusCd:0, swingAnim:0, aimAngle:-Math.PI/2, face:1, shield:0,
+    invisible:0, cloakCd:0, haste:0, thornCd:0,
     orbitPhase:rand(0,TAU), blades:[],
     shoot:rand(.05,.4), dashCd:0, dashTime:0, invuln:0, hit:0, muzzle:0, cast:0,
     angle:clone?rand(0,TAU):-Math.PI/2, alive:true, decision:0, action:0, state:null, reward:0,
@@ -270,7 +308,7 @@ function newGame(){
   game = {
     state:'ready', stage:1, time:30, elapsed:0, kills:0,
     player:fighter(WORLD_W/2, WORLD_H/2), clones:[], enemies:[], bullets:[], minions:[],
-    drones:[], wisps:[], hazards:[], boomerangs:[], turrets:[],
+    drones:[], wisps:[], hazards:[], boomerangs:[], turrets:[], decoys:[],
     particles:[], texts:[], beams:[], rings:[], sparks:[], drops:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:'',
     cooldown:0, cooldown0:5, roundReady:false, roundAnchor:{x:0,y:0}, pendingStage:0,
@@ -288,7 +326,7 @@ function stat(f){
     damage: 18*dmgMul,
     dmgMul,
     rate: .62,
-    speed: 132 + n('speed')*19 + (n('speed')>=3?22:0),
+    speed: (132 + n('speed')*19 + (n('speed')>=3?22:0)) * (f.haste > 0 ? 1.18 : 1),
     regen: n('regen')*.6 + (n('regen')>=3?1.1:0),
     bulletSpeed: 340 + n('bullet')*62,
     range: 400*(1 + n('bullet')*.14 + (n('bullet')>=3?.18:0)),
@@ -340,7 +378,7 @@ function applyCard(f,id){
     const cdKey = {zombie:'zombie', wisp:'wisp', mine:'mine', spike:'spike', poison:'poison',
                    railgun:'railgun', ricochet:'ricochet', flak:'flak', holy:'holy',
                    boomerang:'boomerang', turret:'turret', vortex:'vortex', beam:'beam',
-                   blizzard:'blizzard'}[id];
+                   blizzard:'blizzard', cloak:'cloak', decoy:'decoy', chrono:'chrono'}[id];
     if(lv === 0 && cdKey && f.cd[cdKey] !== undefined) f.cd[cdKey] = .45;
     if(lv === 0 && id === 'turret') f.cd.turret = .1;
     if(id === 'drone') syncDrones(f);
@@ -1257,6 +1295,35 @@ function spawnEnemy(){
   if(game.stage >= 3 && !game.boss && Math.random() < Math.min(.03 + game.stage*.012, .14)) eliteUpgrade(e);
 }
 function allTargets(){ return game.enemies.filter(t=>t.alive); }
+/* ------------------------------------------------------------------ *
+ *  ALLIES — everything on the squad's side.                          *
+ *  Enemies must be able to target summons (zombies, drones, turrets,  *
+ *  guardians) and not only the player and the clones. One helper keeps *
+ *  that list in one place so every AI can use it.                     *
+ * ------------------------------------------------------------------ */
+function allyList(){
+  const out = [];
+  const p = game.player;
+  if(p && p.alive) out.push(p);
+  for(const c of game.clones) if(c.alive) out.push(c);
+  for(const m of game.minions) if(m.alive) out.push(m);
+  for(const d of game.drones) if(d.alive) out.push(d);
+  for(const tu of (game.turrets||[])) if(tu.alive) out.push(tu);
+  for(const w of game.wisps) if(w.alive) out.push(w);
+  for(const f of [p, ...game.clones]){
+    if(!f || !f.alive) continue;
+    for(const gd of (f.guardians||[])) if(gd.x !== undefined) out.push(gd);
+  }
+  /* decoys deliberately read as juicy targets, so enemies chase them first */
+  for(const d of (game.decoys||[])) if(d.alive) out.push(d);
+  return out;
+}
+/* is this thing on the squad's side? */
+function isAlly(o){
+  return o === game.player || o.clone === true || o.owner !== undefined ||
+         o.guardian === true || o.isTurret === true || o.kind === 'decoy';
+}
+
 function nearest(f){
   let best = null, d = Infinity;
   for(const t of game.enemies){
@@ -1349,7 +1416,7 @@ function summonZombie(f){
       x:clamp(f.x+Math.cos(a)*r, 20, WORLD_W-20), y:clamp(f.y+Math.sin(a)*r, 20, WORLD_H-20),
       owner:f, lv, hp:spec.hp, maxHp:spec.hp, dmg:spec.dmg,
       life:spec.life, maxLife:spec.life, attackCd:0, seed:rand(0,100),
-      bob:rand(0,7), hit:0, alive:true
+      bob:rand(0,7), hit:0, alive:true, r:12, summoned:true, kind:'minion'
     };
     game.minions.push(z);
     particles(z.x, z.y, '#8fe06a', 10);
@@ -1388,7 +1455,8 @@ function syncDrones(f){
     const a = i*TAU/Math.max(1,want) - Math.PI/2;
     game.drones.push({
       owner:f, lv, x:f.x+Math.cos(a)*46, y:f.y+Math.sin(a)*46,
-      orbit:a, phase:a, fire:rand(.1,.5), hit:0, alive:true, seed:rand(0,100)
+      orbit:a, phase:a, fire:rand(.1,.5), hit:0, alive:true, seed:rand(0,100),
+      r:10, hp:26+lv*14, maxHp:26+lv*14, kind:'drone'
     });
     particles(f.x, f.y, '#9fe6ff', 6);
   }
@@ -1416,6 +1484,7 @@ function summonWisp(f){
     const wx = clamp(f.x+Math.cos(a)*r, 20, WORLD_W-20), wy = clamp(f.y+Math.sin(a)*r, 20, WORLD_H-20);
     game.wisps.push({
       owner:f, lv, x:wx, y:wy, dmg:spec.dmg, radius:spec.radius,
+      r:9, hp:20+lv*8, maxHp:20+lv*8, kind:'wisp',
       life:spec.life, maxLife:spec.life, bob:rand(0,7), seed:rand(0,100),
       hit:0, alive:true, trail:rand(0,1)
     });
@@ -1627,6 +1696,20 @@ function updateWeapons(f,dt,target){
     f.cd.blizzard -= dt;
     if(f.cd.blizzard <= 0) blizzardCast(f);
   }
+  if(w.cloak){
+    f.cd.cloak -= dt;
+    if(f.cd.cloak <= 0) cloakCast(f);
+    cloakTick(f, dt);
+  }
+  if(w.decoy){
+    f.cd.decoy -= dt;
+    if(f.cd.decoy <= 0 && (game.decoys||[]).filter(d=>d.owner===f && d.alive).length < WEAPON_SPEC.decoy[w.decoy-1].count) decoyCast(f);
+  }
+  if(w.chrono){
+    f.cd.chrono -= dt;
+    if(f.cd.chrono <= 0) chronoCast(f);
+  }
+  if(w.thorn) f.thornCd = Math.max(0, (f.thornCd||0) - dt);
 }
 
 
@@ -1729,7 +1812,7 @@ function summonTurret(f){
     game.turrets.push({
       owner:f, lv, x:clamp(f.x+Math.cos(a)*r, 24, WORLD_W-24),
       y:clamp(f.y+Math.sin(a)*r, 24, WORLD_H-24),
-      r:11, hp:spec.hp, maxHp:spec.hp, dmg:spec.dmg, rate:spec.rate,
+      r:12, hp:spec.hp, maxHp:spec.hp, dmg:spec.dmg, rate:spec.rate, isTurret:true, kind:'turret',
       range:spec.range, cd:rand(.2,.8), life:spec.life, maxLife:spec.life,
       hit:0, aim:rand(0,TAU), alive:true, seed:rand(0,100)
     });
@@ -1751,6 +1834,15 @@ function guardianTick(f,dt,s){
     const a = f.orbitPhase + i*TAU/Math.max(1,spec.count);
     gd.x = f.x + Math.cos(a)*spec.radius;
     gd.y = f.y + Math.sin(a)*spec.radius;
+    gd.r = 14; gd.guardian = true; gd.alive = true;
+    if(gd.hp === undefined){ gd.hp = spec.hp || 150; gd.maxHp = gd.hp; }
+    gd.invuln = Math.max(0, (gd.invuln || 0) - dt);
+    // a guardian that breaks simply reforms after a short rest
+    if(gd.hp <= 0){
+      gd.hp = gd.maxHp;
+      gd.invuln = 1.2;
+      particles(gd.x, gd.y, '#ffe9a3', 8, .9);
+    }
     gd.hitCd = Math.max(0, gd.hitCd - dt);
     for(const e of game.enemies){
       if(!e.alive || gd.hitCd > 0) continue;
@@ -1812,6 +1904,120 @@ function blizzardCast(f){
   });
   f.cd.blizzard = spec.cd; f.cast = .2;
   game.rings.push({x:f.x,y:f.y,r:12,maxR:spec.radius,life:.5,max:.5,color:'#dff4ff',width:3});
+}
+
+
+/* --- cloak: vanish from enemy targeting for a few seconds --------- */
+function cloakCast(f){
+  const lv = weaponLevel(f,'cloak'), spec = WEAPON_SPEC.cloak[lv-1];
+  f.invisible = spec.duration;
+  f.haste = lv >= 3 ? spec.duration : 0;
+  f.cd.cloak = spec.cd;
+  particles(f.x, f.y, '#c8e8ff', 16, 1.1);
+  game.rings.push({x:f.x,y:f.y,r:14,maxR:88,life:.5,max:.5,color:'#c8e8ff',width:2});
+  // the cloak is not silently dropped: re-emerging stuns whatever closes in
+  f.cloakFearR = spec.fear || 0;
+}
+function cloakTick(f,dt){
+  /* shimmer particles only: the timer itself is advanced once per frame in the
+     fighter loop, so the cloak cannot burn down twice as fast when a weapon
+     happens to update on the same tick */
+  if(f.invisible > 0){
+    particles(f.x + rand(-8,8), f.y + rand(-10,10), 'rgba(200,232,255,.9)', 1, .4);
+  }
+}
+
+/* --- decoy: a throwable dummy that soaks the horde's attention ---- */
+function decoyCast(f){
+  const lv = weaponLevel(f,'decoy'), spec = WEAPON_SPEC.decoy[lv-1];
+  game.decoys = game.decoys || [];
+  const owned = game.decoys.filter(d=>d.owner === f && d.alive).length;
+  for(let i=owned; i<spec.count; i++){
+    const a = rand(0,TAU), r = rand(40,70);
+    game.decoys.push({
+      owner:f, lv, x:clamp(f.x+Math.cos(a)*r, 30, WORLD_W-30),
+      y:clamp(f.y+Math.sin(a)*r, 30, WORLD_H-30),
+      hp:spec.hp, maxHp:spec.hp, r:14, radius:spec.radius, blast:spec.blast,
+      shock:spec.shock, life:7.0, maxLife:7.0, hit:0, alive:true,
+      kind:'decoy', seed:rand(0,100), bob:rand(0,7)
+    });
+  }
+  f.cd.decoy = spec.cd;
+  f.cast = .2;
+  particles(f.x, f.y, '#ffd7a0', 10, 1);
+}
+function decoyTick(dt){
+  for(const d of (game.decoys||[])){
+    if(!d.alive) continue;
+    d.life -= dt;
+    d.hit = Math.max(0, d.hit - dt);
+    if(d.life <= 0){ d.alive = false; detonateDecoy(d); }
+  }
+  game.decoys = (game.decoys||[]).filter(d=>d.alive);
+}
+function detonateDecoy(d){
+  const dmg = (d.blast || 1) * 42;
+  for(const e of game.enemies){
+    if(!e.alive) continue;
+    if(dist(d,e) < d.radius){
+      hurt(e, dmg, d.owner);
+      if(d.shock) e.stun = Math.max(e.stun, .8);
+    }
+  }
+  game.rings.push({x:d.x,y:d.y,r:10,maxR:d.radius,life:.45,max:.45,color:'#ffd7a0',width:5});
+  particles(d.x,d.y,'#ffcf8a',20,1.5);
+  shake = Math.min(shake+2.2, 5);
+}
+
+/* --- chrono: a bubble of slowed time ----------------------------- */
+function chronoCast(f){
+  const lv = weaponLevel(f,'chrono'), spec = WEAPON_SPEC.chrono[lv-1];
+  game.hazards.push({
+    kind:'chrono', owner:f, lv, x:f.x, y:f.y, r:spec.radius,
+    slowMul:spec.slow, dmg:0, tick:0, tickRate:.25,
+    life:spec.duration, maxLife:spec.duration, seed:rand(0,100), alive:true
+  });
+  f.cd.chrono = spec.cd;
+  f.haste = spec.haste ? spec.duration : 0;
+  f.cast = .22;
+  game.rings.push({x:f.x,y:f.y,r:18,maxR:spec.radius,life:.5,max:.5,color:'#b9a8ff',width:3});
+}
+function chronoTick(dt){
+  const p = game.player;
+  let inside = false;
+  for(const h of game.hazards){
+    if(h.kind !== 'chrono' || !h.alive) continue;
+    const r2 = h.r * h.r;
+    for(const e of game.enemies){
+      if(!e.alive) continue;
+      const dx = e.x-h.x, dy = e.y-h.y;
+      if(dx*dx+dy*dy < r2) e.chronoSlow = .12;
+    }
+    for(const f of [p, ...game.clones]){
+      if(!f.alive) continue;
+      const dx = f.x-h.x, dy = f.y-h.y;
+      if(dx*dx+dy*dy < r2) inside = true;
+    }
+  }
+  // awakened chrono speeds up the squad inside the bubble
+  if(inside && weaponLevel(p,'chrono') >= 3) p.haste = Math.max(p.haste, .14);
+}
+
+/* --- thorn armour: reflects damage onto melee attackers --------- */
+function thornBurst(f){
+  const lv = weaponLevel(f,'thorn') || 0;
+  if(!lv) return;
+  const spec = WEAPON_SPEC.thorn[lv-1];
+  const dmg = spec.dmg * stat(f).damage;
+  for(const e of game.enemies){
+    if(e.alive && dist(f,e) < spec.radius){
+      hurt(e, dmg, f);
+      e.slow = Math.max(e.slow, .3);
+      if(lv >= 2) e.stun = Math.max(e.stun, .25);
+    }
+  }
+  game.rings.push({x:f.x,y:f.y,r:12,maxR:spec.radius,life:.32,max:.32,color:'#c4b5ff',width:3});
+  particles(f.x,f.y,'#d5c4ff',10,.9);
 }
 
 /* --------------------------- boss attacks ------------------------- */
@@ -1890,13 +2096,38 @@ function damageText(x,y,amount,color){
 function hurt(t, amount, source){
   if(!t || !t.alive) return;
   if(t.invuln > 0) return;
+  /* thorn armour punishes anything that lands a blow on the wearer */
+  if(t.level !== undefined && t.weapons && t.weapons.thorn && (t.thornCd||0) <= 0){
+    t.thornCd = .45;
+    thornBurst(t);
+  }
   /* awakened guardian shield: fighters (never enemies) soak part of the hit */
   if(t.shield > 0 && t.level !== undefined) amount *= .62;
+  /* ---- summoned allies are destructible ---- */
+  if(t.owner !== undefined && t.hp !== undefined && t.level === undefined){
+    t.hp -= amount;
+    t.hit = .12;
+    damageText(t.x, t.y-(t.r||12), amount, '#ffd0a0');
+    particles(t.x, t.y, '#ffcf8a', 3, .6);
+    if(t.hp <= 0){
+      t.alive = false;
+      t.hp = 0;
+      particles(t.x, t.y, '#ffb0a0', 10, 1.1);
+      game.rings.push({x:t.x,y:t.y,r:4,maxR:34,life:.3,max:.3,color:'#ffd39a',width:2});
+      if(t.kind === 'decoy') detonateDecoy(t);
+      if(t.kind === 'minion' && t.lv >= 3){
+        // an awakened zombie still explodes when it dies
+        for(const e of game.enemies) if(e.alive && dist(t,e) < 96) hurt(e, 44, t.owner);
+        game.rings.push({x:t.x,y:t.y,r:8,maxR:96,life:.45,max:.45,color:'#a6ff7a',width:5});
+      }
+    }
+    return;
+  }
   const attacker = source && (source.owner || source);
   if(t !== game.player && t.clone !== true && attacker && attacker.frenzy > 0) amount *= 1.6;
   t.hp -= amount;
   t.hit = .12;
-  const isEnemy = !t.clone;
+  const isEnemy = !isAlly(t);
   damageText(t.x, t.y-(t.r||16), amount, isEnemy?'#ffe8a8':t===game.player?'#ff8f8f':'#ffc79a');
   if(t.clone) t.reward -= amount*.035;
   if(source && source.clone) source.reward += amount*.04;
@@ -2274,6 +2505,9 @@ function tick(dt){
   }
 
   const fighters = [game.player, ...game.clones.filter(c=>c.alive)];
+  /* summoned allies are legitimate targets for the horde */
+  const allyTargets = allyList();
+  for(const e of game.enemies) e.chronoSlow = 0;
 
   for(const f of fighters){
     f.hit = Math.max(0, f.hit-dt);
@@ -2322,11 +2556,16 @@ function tick(dt){
     e.slow = Math.max(0, e.slow-dt);
     if(e.stun > 0) continue;
     let target = null, d = Infinity;
-    for(const f of fighters){
+    for(const f of allyTargets){
       if(!f.alive) continue;
+      if(f.invisible > 0) continue;                // cloaked allies cannot be seen
       const nd = dist(e,f);
-      if(nd < d){ d = nd; target = f; }
+      // the player is the real prize: slight bias keeps the horde pressing in
+      let score = nd * (f === game.player ? 0.9 : 1);
+      if(f.kind === 'decoy') score *= 0.55;        // a decoy shouts louder
+      if(score < d){ d = score; target = f; }
     }
+    if(target) d = dist(e, target);
     /* Summoned minions are only loyal to their summoner: once the squad is
        out of reach they turn on any other enemy, so the battlefield stays
        chaotic instead of every summon beelining for the player. */
@@ -2338,7 +2577,8 @@ function tick(dt){
       }
     }
     if(target){
-      const sp = e.speed*(e.slow>0?.38:1);
+      const chrono = e.chronoSlow > 0 ? e.chronoSlow : 1;
+      const sp = e.speed*(e.slow>0?.38:1)*chrono;
       e.navGoal = {x:target.x, y:target.y};
       let ax = target.x, ay = target.y;
       /* Wall awareness: if the straight line is blocked, follow an A* path.
@@ -2389,11 +2629,17 @@ function tick(dt){
               hurt(target, e.damage, null);
               particles(target.x, target.y, '#ffd0a0', 5, .8);
             }
-          } else if(target.invuln <= 0){
+          } else if(target.level !== undefined){
+            /* player / clone: brief mercy invulnerability */
+            if(target.invuln <= 0){
+              hurt(target, e.damage, null);
+              target.invuln = .65;
+              shake = Math.min(shake+1.6, 4);
+              particles(target.x, target.y, '#ffb0a0', 5, .8);
+            }
+          } else {
+            /* summon: no mercy frames, it simply takes the hit */
             hurt(target, e.damage, null);
-            target.invuln = .65;
-            shake = Math.min(shake+1.6, 4);
-            particles(target.x, target.y, '#ffb0a0', 5, .8);
           }
         }
       }
@@ -2413,12 +2659,17 @@ function tick(dt){
     if(e.laser > 0){
       e.laser -= dt;
       const s2 = stat(game.player);
-      for(const f of fighters){
-        if(!f.alive || f.invuln > 0) continue;
+      for(const f of allyList()){
+        if(!f.alive) continue;
+        if(f.level !== undefined && f.invuln > 0) continue;
+        if(f.invisible > 0) continue;
         const dx = f.x-e.x, dy = f.y-e.y;
         const along = dx*Math.cos(e.laserAngle) + dy*Math.sin(e.laserAngle);
         const perp = Math.abs(-dx*Math.sin(e.laserAngle) + dy*Math.cos(e.laserAngle));
-        if(along > 0 && perp < 16){ hurt(f, 16*(1+e.tier*.4), e); f.invuln = .45; }
+        if(along > 0 && perp < 16){
+          hurt(f, 16*(1+e.tier*.4), e);
+          if(f.level !== undefined) f.invuln = .45;
+        }
       }
       if(e.laser <= 0) e.attackCd = BOSS_ACTIONS.laser.cd;
       continue;
@@ -2439,10 +2690,12 @@ function tick(dt){
       const sp = BOSS_ACTIONS.charge.speed;
       e.x = clamp(e.x + e.chargeDir.x*sp*dt, 40, WORLD_W-40);
       e.y = clamp(e.y + e.chargeDir.y*sp*dt, 40, WORLD_H-40);
-      for(const f of fighters){
-        if(f.alive && dist(e,f) < e.r+16 && f.invuln <= 0){
+      for(const f of allyList()){
+        if(!f.alive || f.invisible > 0) continue;
+        if(f.level !== undefined && f.invuln > 0) continue;
+        if(dist(e,f) < e.r + (f.r||16)){
           hurt(f, e.damage*BOSS_ACTIONS.charge.dmg, e);
-          f.invuln = .6;
+          if(f.level !== undefined) f.invuln = .6;
         }
       }
       if(Math.random() < dt*30) particles(e.x,e.y,'#ffb0a0',2,.8);
@@ -2559,6 +2812,21 @@ function tick(dt){
 
   // --- traps: mines / spikes / poison ------------------------------
   updateHazards(dt);
+  decoyTick(dt);
+  chronoTick(dt);
+  for(const f of fighters){
+    if(f.invisible > 0 || f.haste > 0){
+      f.invisible = Math.max(0, f.invisible - dt);
+      f.haste = Math.max(0, f.haste - dt);
+      if(f.invisible <= 0 && f.cloakFearR > 0){
+        for(const e of game.enemies){
+          if(e.alive && dist(f,e) < f.cloakFearR){ e.stun = Math.max(e.stun, .7); particles(e.x,e.y,'#c8e8ff',5,.9); }
+        }
+        game.rings.push({x:f.x,y:f.y,r:20,maxR:f.cloakFearR,life:.45,max:.45,color:'#c8e8ff',width:4});
+        f.cloakFearR = 0;
+      }
+    }
+  }
 
   for(const b of game.bullets){
     b.px = b.x; b.py = b.y;
@@ -2577,11 +2845,14 @@ function tick(dt){
       particles(b.x, b.y, '#bff0c0', 3, .5);
     }
     if(b.hostile){
-      for(const f of fighters){
-        if(!f.alive || f.invuln > 0) continue;
-        if(dist(b,f) < 15+b.r){
+      for(const f of allyList()){
+        if(!f.alive) continue;
+        if(f.invisible > 0) continue;
+        if(f.level !== undefined && f.invuln > 0) continue;
+        const hitR = (f.r || 15) + b.r;
+        if(dist(b,f) < hitR){
           hurt(f, b.damage, null);
-          f.invuln = .35;
+          if(f.level !== undefined) f.invuln = .35;
           b.life = 0;
           break;
         }
@@ -3995,6 +4266,28 @@ function drawHazard(h,t){
       ctx.stroke();
     }
     glow(GLOW.purple, 0, 0, h.r*.9, .3*p);
+  } else if(h.kind === 'chrono'){
+    const p = clamp(h.life/h.maxLife, 0, 1);
+    const rg3 = ctx.createRadialGradient(0,0,8,0,0,h.r);
+    rg3.addColorStop(0, `rgba(185,168,255,${.16*p})`);
+    rg3.addColorStop(.7, `rgba(150,130,230,${.10*p})`);
+    rg3.addColorStop(1, 'rgba(150,130,230,0)');
+    ctx.fillStyle = rg3;
+    ctx.beginPath(); ctx.arc(0, 0, h.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(200,185,255,${.45*p})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10,10]);
+    ctx.beginPath(); ctx.arc(0, 0, h.r*.96, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    for(let i=0;i<12;i++){
+      const a = i*TAU/12 - Math.PI/2;
+      ctx.strokeStyle = `rgba(215,205,255,${(i%3===0?.5:.25)*p})`;
+      ctx.lineWidth = i%3===0 ? 2 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*h.r*.82, Math.sin(a)*h.r*.82);
+      ctx.lineTo(Math.cos(a)*h.r*.93, Math.sin(a)*h.r*.93);
+      ctx.stroke();
+    }
   } else if(h.kind === 'blizzard'){
     const p = clamp(h.life/h.maxLife, 0, 1);
     const rg2 = ctx.createRadialGradient(0,0,6,0,0,h.r);
@@ -4073,6 +4366,49 @@ function drawTurret(tu,t){
   ctx.restore();
 }
 
+/* --- decoy: straw dummy on a tripod, blinking as it decays --- */
+function drawDecoy(d,t){
+  ctx.save();
+  ctx.translate(d.x, d.y);
+  const frac = clamp(d.life/d.maxLife, 0, 1);
+  const blink = frac < .3 ? (.55 + .45*Math.sin(t*18)) : 1;
+  ctx.globalAlpha = blink;
+  ctx.fillStyle = 'rgba(6,12,10,.4)';
+  ctx.beginPath(); ctx.ellipse(0, 13, 14, 5, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#7d4f28';
+  ctx.lineWidth = 3.4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-3,2); ctx.lineTo(-9,13);
+  ctx.moveTo(3,2);  ctx.lineTo(9,13);
+  ctx.moveTo(0,-6); ctx.lineTo(0,9);
+  ctx.stroke();
+  ctx.fillStyle = d.hit > 0 ? '#ffffff' : '#e8c56a';
+  rrect(ctx, -9, -12, 18, 20, 7); ctx.fill();
+  ctx.strokeStyle = '#8a6a2a';
+  ctx.lineWidth = 1.2;
+  rrect(ctx, -9, -12, 18, 20, 7); ctx.stroke();
+  ctx.fillStyle = '#c2462f';
+  ctx.beginPath(); ctx.arc(0, -2, 7, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#f3e6c0';
+  ctx.beginPath(); ctx.arc(0, -2, 4.2, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#c2462f';
+  ctx.beginPath(); ctx.arc(0, -2, 1.6, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#c9a24a';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-8,-6); ctx.lineTo(-16,-1);
+  ctx.moveTo(8,-6);  ctx.lineTo(16,-1);
+  ctx.stroke();
+  const hw = 22;
+  ctx.globalAlpha = .9 * blink;
+  ctx.fillStyle = 'rgba(8,14,10,.7)';
+  rrect(ctx, -hw/2, -24, hw, 3.4, 1.7); ctx.fill();
+  ctx.fillStyle = '#ffd7a0';
+  rrect(ctx, -hw/2, -24, hw*Math.max(0,d.hp)/d.maxHp, 3.4, 1.7); ctx.fill();
+  ctx.restore();
+}
+
 /* --- boomerang saw --- */
 function drawBoomerang(bm,t){
   ctx.save();
@@ -4125,6 +4461,7 @@ function render(t){
   // traps sit flat on the floor, under everything else
   for(const h of game.hazards) if(visible(h.x,h.y,80)) drawHazard(h,t);
   for(const tu of (game.turrets||[])) if(visible(tu.x,tu.y,90)) drawTurret(tu,t);
+  for(const dc of (game.decoys||[])) if(visible(dc.x,dc.y,80)) drawDecoy(dc,t);
   for(const m of game.minions) if(visible(m.x,m.y,80)) drawMinion(m,t);
   for(const d of game.drones) if(visible(d.x,d.y,80)) drawDrone(d,t);
   for(const w of game.wisps) if(visible(w.x,w.y,80)) drawWisp(w,t);
@@ -4606,7 +4943,7 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     weaponLevel, WEAPONS, WEAPON_SPEC, hurt, step:(n,dt=.0167)=>{ for(let i=0;i<n;i++) tick(dt); },
     WORLD, cam, worldEnt, worldDepth, depthLabel, buildWorld, resolveSolid, makeEnemyAt,
     collectDrop, spawnBuildingLoot, spawnBuildingGuards, beginCooldown, beginRound, W, H,
-    sprite, SPR, drawFighter, drawEnemy
+    sprite, SPR, drawFighter, drawEnemy, allyList, allyTargetsOf:()=>allyList()
   };
 }
 })();
