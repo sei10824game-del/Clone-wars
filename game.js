@@ -447,7 +447,15 @@ const WEAPON_SPEC = {
   warcry:[
     {cd:7.0, radius:280, dmgMul:.20, speedMul:.15, duration:3.0, stun:0},
     {cd:6.0, radius:340, dmgMul:.30, speedMul:.20, duration:4.0, stun:0},
-    {cd:5.0, radius:400, dmgMul:.45, speedMul:.25, duration:5.0, stun:1}]
+    {cd:5.0, radius:400, dmgMul:.45, speedMul:.25, duration:5.0, stun:1}],
+  bearclaw:[
+    {cd:4.5, radius:52, dmg:.55, life:16, max:4, tick:.5, hold:.7},
+    {cd:3.6, radius:62, dmg:.70, life:18, max:6, tick:.45, hold:1.0},
+    {cd:2.8, radius:74, dmg:.85, life:20, max:8, tick:.40, hold:1.4}],
+  flamevent:[
+    {cd:5.0, radius:64, dmg:.40, life:5.0, max:3, tick:.35, burn:.10},
+    {cd:4.0, radius:76, dmg:.52, life:6.0, max:4, tick:.32, burn:.16},
+    {cd:3.1, radius:90, dmg:.66, life:7.0, max:5, tick:.30, burn:.24}]
 };
 
 const STATS = [
@@ -624,6 +632,16 @@ const STATS = [
      'ドロップの出現率と回復アイテムの効果が上がる。',
      'さらに上昇し、XP獲得も増える。',
      '覚醒：撃破時に低確率でドロップが確定発生する。']},
+  {id:'bearclaw', icon:'⊼', name:'ベアトラップ', tag:'TRAP',
+   levels:[
+     '足元に罠を仕掛ける。踏んだ相手は敵味方問わず拘束され、動けなくなる。',
+     '罠が大きくなり、拘束時間とダメージが伸びる。',
+     '覚醒：罠にかかった相手はさらにスリップダメージを受け続ける。']},
+  {id:'flamevent', icon:'♨', name:'フレイムベント', tag:'TRAP',
+   levels:[
+     '地面から炎を噴き上げる。敵味方問わず燃えて継続ダメージ。',
+     '炎柱が太く、燃焼ダメージが増える。',
+     '覚醒：燃えている相手を倒すと爆発して周囲へ延焼する。']},
   {id:'warcry', icon:'♫', name:'ウォークライ', tag:'UTILITY',
    levels:[
      '叫びで周囲のクローンの移動速度と攻撃力を上げる。',
@@ -667,7 +685,8 @@ function fighter(x,y,clone=false){
         railgun:0, ricochet:0, flak:0, holy:0, boomerang:0, turret:0, guardian:0, vortex:0, beam:0, blizzard:0,
         cloak:0, decoy:0, chrono:0, brainwash:0, terror:0, curse:0, pacify:0,
         homing:0, airstrike:0, gravity:0, thorns:0, lightning:0, cannon:0,
-        blackhole:0, hexbolt:0, totem:0, shockwave:0, sapper:0, orbital:0, warcry:0},
+        blackhole:0, hexbolt:0, totem:0, shockwave:0, sapper:0, orbital:0, warcry:0,
+        bearclaw:0, flamevent:0},
     bladesBack:[], torusCd:0, swingAnim:0, aimAngle:-Math.PI/2, face:1, shield:0,
     invisible:0, cloakCd:0, haste:0, thornCd:0,
     orbitPhase:rand(0,TAU), blades:[],
@@ -684,7 +703,7 @@ function newGame(){
     player:fighter(WORLD_W/2, WORLD_H/2), clones:[], enemies:[], bullets:[], minions:[],
     drones:[], wisps:[], hazards:[], boomerangs:[], turrets:[], decoys:[],
     missiles:[], strikes:[], shells:[], gravityWells:[], skeletons:[],
-    holes:[], totems:[], shockwaves:[], mines2:[], orbitals:[],
+    holes:[], totems:[], shockwaves:[], mines2:[], orbitals:[], cages:[],
     particles:[], texts:[], beams:[], rings:[], sparks:[], drops:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:'',
     cooldown:0, cooldown0:5, roundReady:false, roundAnchor:{x:0,y:0}, pendingStage:0,
@@ -866,7 +885,8 @@ function applyCard(f,id){
                    homing:'homing', airstrike:'airstrike', gravity:'gravity', thorns:'thorns',
                    lightning:'lightning', cannon:'cannon',
                    blackhole:'blackhole', hexbolt:'hexbolt', totem:'totem', shockwave:'shockwave',
-                   sapper:'sapper', orbital:'orbital', warcry:'warcry'}[id];
+                   sapper:'sapper', orbital:'orbital', warcry:'warcry',
+                   bearclaw:'bearclaw', flamevent:'flamevent'}[id];
     if(lv === 0 && cdKey && f.cd[cdKey] !== undefined) f.cd[cdKey] = .45;
     if(lv === 0 && id === 'turret') f.cd.turret = .1;
     if(id === 'drone') syncDrones(f);
@@ -1084,6 +1104,7 @@ function stageClear(){
   game.wisps = [];
   game.drops = [];
   game.holes = []; game.totems = []; game.shockwaves = []; game.mines2 = []; game.orbitals = [];
+  game.cages = [];
   game.boss = null;
   /* XP is per-individual now: clearing a stage no longer hands a lump sum to
      the whole squad. Each fighter only grows from kills it actually makes
@@ -1197,6 +1218,10 @@ function buildWorld(){
         x:bx, y:by, w, h, depth, tier,
         loot: room.loot + tier,
         guards: room.guards + tier,
+        /* deeper buildings hold more captured clones: 0 in the shallows,
+           up to 4 in the vaults at the edge of the map */
+        cages: clamp(tier - 1 + (depth > .55 ? 1 : 0), 0, 4),
+        freed: 0,
         entered:false, cleared:false, discovered:false,
         seed: Math.floor(rng()*100000),
         name: ['廃屋','保管庫','研究所','地下シェルター','深奥の間'][tier]
@@ -1581,6 +1606,65 @@ function lootForDepth(d, rng){
   return band >= 3 ? 'weapon2' : 'xp';
 }
 
+/* captured clones wait inside the deeper buildings, locked in a cage */
+function spawnBuildingCages(b){
+  if(b.caged) return;
+  b.caged = true;
+  if(!b.cages) return;
+  const rng = makeRng(b.seed + 4242);
+  /* Captives are held in a tight cluster at the heart of the room so the
+     player meets them on the way in. Large rooms (the vaults) get a wider
+     ring, small shacks a tighter one. */
+  const spread = Math.min(b.w, b.h) * 0.22;
+  const cx = b.x + b.w/2, cy = b.y + b.h/2;
+  for(let i=0;i<b.cages;i++){
+    const a = rng()*TAU;
+    const rad = b.cages === 1 ? 0 : spread * (0.45 + rng()*0.55);
+    const x = clamp(cx + Math.cos(a)*rad, b.x+70, b.x+b.w-70);
+    const y = clamp(cy + Math.sin(a)*rad, b.y+70, b.y+b.h-70);
+    game.cages.push({x, y, r:20, building:b, tier:b.tier, freed:false,
+      seed:rand(0,100), bob:rand(0,7), open:0, alive:true, kind:'cage'});
+  }
+}
+/* touching a cage unlocks the clone and it joins the squad */
+function freeCage(cage){
+  if(cage.freed) return;
+  cage.freed = true;
+  cage.open = .6;
+  const b = cage.building;
+  if(b) b.freed = (b.freed||0) + 1;
+  const c = fighter(clamp(cage.x + rand(-26,26), 40, WORLD_W-40),
+                    clamp(cage.y + rand(-26,26), 40, WORLD_H-40), true);
+  /* captives have been surviving out here for a while: give them a head start
+     that matches how deep the building was. */
+  const bonus = cage.tier;
+  c.level = 1 + bonus;
+  c.maxHp = c.hp = 100 + bonus*22;
+  for(let i=0;i<bonus;i++) {
+    const pool = cardPool(c);
+    if(pool.length) applyCard(c, pool[Math.floor(Math.random()*pool.length)].id);
+  }
+  game.clones.push(c);
+  game.rings.push({x:c.x,y:c.y,r:8,maxR:120,life:.6,max:.6,color:'#d8ff9e',width:4});
+  particles(c.x,c.y,'#d8ff9e',20,1.4);
+  game.texts.push({x:c.x,y:c.y-40,vy:-26,life:1.3,max:1.3,text:'CLONE FREED',color:'#d8ff9e',size:15});
+  notice('CLONE FREED','監禁されていたクローンが仲間になった');
+  shake = Math.min(shake+1.6, 5);
+}
+function cageTick(dt){
+  game.cages = game.cages || [];
+  const squad = [game.player, ...game.clones].filter(f=>f && f.alive);
+  for(const cg of game.cages){
+    if(cg.freed){ cg.open = Math.max(0, cg.open - dt); continue; }
+    for(const f of squad){
+      /* must actually walk into the cage; proximity across a big room is not
+         enough, otherwise every captive pops the moment you enter */
+      if(dist(f, cg) < cg.r + (f.r||16) + 2){ freeCage(cg); break; }
+    }
+  }
+  game.cages = game.cages.filter(cg=>!cg.freed || cg.open > 0);
+}
+
 function spawnBuildingLoot(b){
   if(b.looted) return;
   b.looted = true;
@@ -1748,9 +1832,13 @@ function spawnBoss(){
   // Same boss can return; keep the threat readout interesting by labelling the revisit.
   const cycle = game.bossCycle || 0;
   const shownName = cycle > 0 ? `${def.name} MK-${cycle+1}` : def.name;
+  /* The player has no special status, so the boss picks any squad member to
+     emerge next to instead of always walking out of the player's shadow. */
+  const squad = allyList().filter(f=>f.alive && f.kind !== 'decoy' && f.kind !== 'totem');
+  const anchor = squad.length ? squad[Math.floor(Math.random()*squad.length)] : game.player;
   const a = rand(0,TAU);
-  const x = clamp(game.player.x + Math.cos(a)*420, 80, WORLD_W-80);
-  const y = clamp(game.player.y + Math.sin(a)*420, 80, WORLD_H-80);
+  const x = clamp(anchor.x + Math.cos(a)*420, 80, WORLD_W-80);
+  const y = clamp(anchor.y + Math.sin(a)*420, 80, WORLD_H-80);
   const hp = Math.round(def.hp*(1+tier*.9));
   const boss = {
     x, y, type:'boss', boss:true, kind:def.kind, name:shownName, title:def.title,
@@ -1878,6 +1966,20 @@ function isAlly(o){
          o.guardian === true || o.isTurret === true || o.kind === 'decoy';
 }
 
+/* The boss treats the whole squad the same way: the player is just another
+   clone, so it picks whichever member of the squad is closest. */
+function nearestSquadMember(from){
+  let best = null, bd = Infinity;
+  for(const f of allyList()){
+    if(!f.alive) continue;
+    if(f.invisible > 0) continue;
+    if(f.kind === 'decoy' || f.kind === 'totem') continue;
+    const d = dist(from, f);
+    if(d < bd){ bd = d; best = f; }
+  }
+  return [best, bd];
+}
+
 function nearest(f){
   let best = null, d = Infinity;
   for(const t of game.enemies){
@@ -1898,7 +2000,7 @@ function rifleFire(f,target,s){
     vx:Math.cos(a)*s.bulletSpeed, vy:Math.sin(a)*s.bulletSpeed,
     life:s.range/s.bulletSpeed, maxLife:s.range/s.bulletSpeed,
     damage:s.damage, owner:f, r:4, pierce:0, hitList:[],
-    color:f.clone?'#ffb469':'#b8ff83'
+    color:'#b8ff83'
   });
   f.muzzle = .1;
   f.cd.rifle = s.rate;
@@ -2058,12 +2160,13 @@ function placeTrap(f, kind){
   }
   if(game.hazards.length >= 90) game.hazards.shift();
   const idx = game.hazards.length % 7;
-  const spread = kind === 'mine' ? 72 : kind === 'spike' ? 30 : 36;
+  const spread = kind === 'mine' ? 72 : kind === 'spike' ? 30 : kind === 'bearclaw' ? 34 : 40;
   const ang = f.angle + Math.PI + rand(-1.2, 1.2);
-  const px = kind === 'mine'
+  const far = kind === 'mine' || kind === 'bearclaw' || kind === 'flamevent';
+  const px = far
     ? clamp(f.x + Math.cos(ang)*rand(28, spread), 30, WORLD_W-30)
     : clamp(f.x + Math.cos(ang)*rand(6, spread), 24, WORLD_W-24);
-  const py = kind === 'mine'
+  const py = far
     ? clamp(f.y + Math.sin(ang)*rand(28, spread), 30, WORLD_H-30)
     : clamp(f.y + Math.sin(ang)*rand(6, spread), 24, WORLD_H-24);
   game.hazards.push({
@@ -2071,7 +2174,8 @@ function placeTrap(f, kind){
     dmg:spec.dmg, tick:0, tickRate:spec.tick || .45,
     life: spec.life || 999, maxLife: spec.life || 999,
     arm: spec.arm || 0, trigger: spec.trigger || 0,
-    blown:false, seed:rand(0,100), idx, alive:true
+    blown:false, seed:rand(0,100), idx, alive:true,
+    hold: spec.hold || 0, burn: spec.burn || 0
   });
   particles(f.x, f.y, kind==='poison'?'#9be36b':kind==='spike'?'#cfd8e8':'#ffb066', 6, .8);
 }
@@ -2088,6 +2192,42 @@ function detonateMine(h){
   particles(h.x, h.y, '#ffb066', 22, 1.6);
   particles(h.x, h.y, '#ffe6b8', 12, 1.2);
   shake = Math.min(shake+3.2, 6);
+}
+/* ------------------------------------------------------------------ *
+ *  TRAPS hit friend and foe alike. A trap that only hurt enemies was    *
+ *  just another gun, so every trap below runs this helper: the trap     *
+ *  owner is exempt for a grace period, everyone else caught in the      *
+ *  radius — squad, clones, summons and the horde — takes the hit.       *
+ * ------------------------------------------------------------------ */
+function trapVictims(h, radius, includeOwner){
+  const out = [];
+  for(const e of game.enemies){
+    if(!e.alive) continue;
+    if(dist(h,e) < radius + (e.r||13)*.5) out.push({who:e, hostile:true});
+  }
+  for(const f of allyList()){
+    if(!f.alive) continue;
+    if(!includeOwner && f === h.owner) continue;
+    if(f.invisible > 0) continue;
+    if(dist(h,f) < radius + (f.r||16)*.5) out.push({who:f, hostile:false});
+  }
+  return out;
+}
+/* apply a trap tick to everyone standing in it */
+function trapPulse(h, radius, dmg){
+  for(const v of trapVictims(h, radius, h.kind === 'bearclaw')){
+    const who = v.who;
+    if(v.hostile){
+      hurt(who, dmg, h.owner);
+      if(h.hold) who.stun = Math.max(who.stun||0, h.hold*.6);
+      if(h.burn) who.burning = Math.max(who.burning||0, h.burn);
+    } else {
+      /* friendly fire is real but softened: the trap is ours, after all */
+      hurt(who, dmg*.55, null);
+      if(h.hold) who.stun = Math.max(who.stun||0, h.hold*.5);
+      if(h.burn) who.burning = Math.max(who.burning||0, h.burn*.6);
+    }
+  }
 }
 function updateHazards(dt){
   for(const h of game.hazards){
@@ -2142,6 +2282,25 @@ function updateHazards(dt){
         }
         game.rings.push({x:h.x,y:h.y,r:20,maxR:h.r*.7,life:.5,max:.5,color:'#c4b5ff',width:7});
         particles(h.x,h.y,'#d5c4ff',26,1.8);
+      }
+      continue;
+    }
+    /* bear trap: clamps onto whoever steps in, friend or foe */
+    if(h.kind === 'bearclaw'){
+      trapPulse(h, h.r, dmg);
+      if(h.lv >= 3){
+        // awakened jaws keep grinding whatever they hold
+        for(const v of trapVictims(h, h.r*.8, false)){
+          hurt(v.who, dmg*.5, h.owner);
+        }
+      }
+      continue;
+    }
+    /* flame vent: burning ground that does not care whose feet are in it */
+    if(h.kind === 'flamevent'){
+      trapPulse(h, h.r, dmg);
+      for(const v of trapVictims(h, h.r*.6, true)){
+        if(v.hostile) v.who.burnTick = Math.max(v.who.burnTick||0, .9);
       }
       continue;
     }
@@ -2205,7 +2364,7 @@ function updateWeapons(f,dt,target){
     f.cd.wisp -= dt;
     if(f.cd.wisp <= 0) summonWisp(f);
   }
-  for(const kind of ['mine','spike','poison']){
+  for(const kind of ['mine','spike','poison','bearclaw','flamevent']){
     if(!w[kind]) continue;
     f.cd[kind] -= dt;
     if(f.cd[kind] <= 0) placeTrap(f, kind);
@@ -2358,7 +2517,7 @@ function railgunFire(f,target,s){
     vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
     life:.9, maxLife:.9, damage:s.damage*spec.dmg, owner:f,
     r:spec.width*.5, pierce:spec.pierce, hitList:[],
-    color:f.clone?'#ffd08a':'#cfeaff', rail:true, blast:spec.blast,
+    color:'#cfeaff', rail:true, blast:spec.blast,
     knock:34
   });
   game.beams.push({pts:[{x:f.x,y:f.y},{x:f.x+Math.cos(a)*28,y:f.y+Math.sin(a)*28}],
@@ -3520,7 +3679,8 @@ function bossAttack(e){
     shake = Math.min(shake+2.2,6);
   } else if(attack === 'fan'){
     const A = BOSS_ACTIONS.fan;
-    const base = Math.atan2(game.player.y-e.y, game.player.x-e.x);
+    const [fanT] = nearestSquadMember(e);
+    const base = Math.atan2((fanT||game.player).y-e.y, (fanT||game.player).x-e.x);
     for(let i=0;i<A.count;i++){
       const a = base + (i-(A.count-1)/2)*.17;
       bossShot(e, a, 190*A.speed, stat(game.player).damage*A.dmg*tierMul, A.r, '#ffcaa0');
@@ -3528,7 +3688,8 @@ function bossAttack(e){
     e.attackCd = A.cd;
   } else if(attack === 'laser'){
     e.laser = .55;
-    e.laserAngle = Math.atan2(game.player.y-e.y, game.player.x-e.x);
+    const [lasT] = nearestSquadMember(e);
+    e.laserAngle = Math.atan2((lasT||game.player).y-e.y, (lasT||game.player).x-e.x);
     game.rings.push({x:e.x,y:e.y,r:10,maxR:44,life:.3,max:.3,color:'#ffd0ff',width:3});
   } else if(attack === 'minions'){
     const n = 2 + e.tier;
@@ -4043,8 +4204,10 @@ function updateBuildings(dt){
       b.discovered = true;
       spawnBuildingLoot(b);
       spawnBuildingGuards(b);
+      spawnBuildingCages(b);
       const band = depthLabel(b.depth);
-      notice('ENTERED · ' + b.name, band.label + ' / 戦利品 ' + b.loot + ' ・ 敵 ' + b.guards);
+      const capNote = b.cages ? ' ・ 囚人 ' + b.cages : '';
+      notice('ENTERED · ' + b.name, band.label + ' / 戦利品 ' + b.loot + ' ・ 敵 ' + b.guards + capNote);
       game.rings.push({x:b.x+b.w/2, y:b.y+b.h/2, r:30,
         maxR:Math.max(b.w,b.h)*.7, life:.8, max:.8, color:band.color, width:5});
       shake = Math.min(shake+2, 5);
@@ -4052,7 +4215,8 @@ function updateBuildings(dt){
     if(!b.cleared && b.entered){
       const guardsAlive = game.enemies.some(e => e.alive && e.guard && e.building === b);
       const lootLeft = game.drops.some(d => d.alive && d.building === b);
-      if(!guardsAlive && !lootLeft){
+      const cagesLeft = (game.cages||[]).some(cg => !cg.freed && cg.building === b);
+      if(!guardsAlive && !lootLeft && !cagesLeft){
         b.cleared = true;
         notice('CLEARED · ' + b.name, 'この建物は制圧済み');
         game.rings.push({x:b.x+b.w/2, y:b.y+b.h/2, r:20,
@@ -4124,6 +4288,21 @@ function tick(dt){
   for(const e of game.enemies){
     e.chronoSlow = 0;
     if(e.weakenT > 0) e.weakenT = Math.max(0, e.weakenT - dt);
+    /* burning from the flame vent keeps ticking after the fire is left */
+    if(e.burning > 0){
+      e.burning = Math.max(0, e.burning - dt);
+      e.burningDmg = (e.burningDmg||0) + dt;
+      if(e.burningDmg > .35){ e.burningDmg = 0; hurt(e, 2.5 + game.stage*.5, null); }
+      if(Math.random() < dt*8) particles(e.x, e.y-6, '#ff9a5c', 1, .5);
+    }
+  }
+  /* the squad can burn too */
+  for(const f of allyList()){
+    if(!f.alive || !(f.burning > 0)) continue;
+    f.burning = Math.max(0, f.burning - dt);
+    f.burningDmg = (f.burningDmg||0) + dt;
+    if(f.burningDmg > .45){ f.burningDmg = 0; hurt(f, 1.8 + game.stage*.3, null); }
+    if(Math.random() < dt*6) particles(f.x, f.y-8, '#ff9a5c', 1, .4);
   }
 
   for(const f of fighters){
@@ -4389,11 +4568,12 @@ function tick(dt){
       if(e.laser <= 0) e.attackCd = BOSS_ACTIONS.laser.cd;
       continue;
     }
-    // dash charge toward the player
-    if(e.chargeCd <= 0 && e.charging <= 0 && game.player.alive){
-      if(dist(e, game.player) < 620){
+    // dash charge toward whoever from the squad is closest
+    const [chargeTarget] = nearestSquadMember(e);
+    if(e.chargeCd <= 0 && e.charging <= 0 && chargeTarget){
+      if(dist(e, chargeTarget) < 620){
         e.charging = .42;
-        const a = Math.atan2(game.player.y-e.y, game.player.x-e.x);
+        const a = Math.atan2(chargeTarget.y-e.y, chargeTarget.x-e.x);
         e.chargeDir = {x:Math.cos(a), y:Math.sin(a)};
         e.chargeCd = BOSS_ACTIONS.charge.cd + rand(0,1.2);
         e.roar = .35;
@@ -4416,12 +4596,15 @@ function tick(dt){
       if(Math.random() < dt*30) particles(e.x,e.y,'#ffb0a0',2,.8);
       continue;
     }
-    // normal drift toward the player
-    const d = dist(e, game.player) || 1;
-    const chase = e.speed*(e.slow>0?.4:1);
-    if(d > 150){
-      e.x = clamp(e.x + (game.player.x-e.x)/d*chase*dt, 30, WORLD_W-30);
-      e.y = clamp(e.y + (game.player.y-e.y)/d*chase*dt, 30, WORLD_H-30);
+    // normal drift toward the closest squad member (player == clone here)
+    const [chaseT] = nearestSquadMember(e);
+    if(chaseT){
+      const d = dist(e, chaseT) || 1;
+      const chase = e.speed*(e.slow>0?.4:1);
+      if(d > 150){
+        e.x = clamp(e.x + (chaseT.x-e.x)/d*chase*dt, 30, WORLD_W-30);
+        e.y = clamp(e.y + (chaseT.y-e.y)/d*chase*dt, 30, WORLD_H-30);
+      }
     }
     if(e.attackCd <= 0) bossAttack(e);
   }
@@ -4536,6 +4719,7 @@ function tick(dt){
   skeletonTick(dt);
   holeTick(dt);
   totemTick(dt);
+  cageTick(dt);
   shockwaveTick(dt);
   sapperTick(dt);
   orbitalTick(dt);
@@ -5521,6 +5705,24 @@ SPR.totemIdle = [
   '..kMMMMMMMMk..',
   '..kKKKKKKKKk..'
 ];
+/* ---------- cage: a barred pen holding a captured clone ---------- */
+SPR.cageIdle = [
+  '.kkkkkkkkkkkk.',
+  '.kmmmmmmmmmmk.',
+  '.kkkkkkkkkkkk.',
+  '.kk.kk.kk.kk.k',
+  '.kk.kk.kk.kk.k',
+  '.kk.kk.kk.kk.k',
+  '.kk.kk.kk.kk.k',
+  '.kk.kk.kk.kk.k',
+  '.kk.kk.kk.kk.k',
+  '.kk.kk.kk.kk.k',
+  '.kmmmmmmmmmmk.',
+  '.kkkkkkkkkkkk.',
+  '..kMM....MMk..',
+  '..kKK....KKk..'
+];
+
 /* ---------- sapper mine: squat charge with a blinking lamp ----- */
 SPR.mineIdle = [
   '..kkkkkk..',
@@ -5623,7 +5825,10 @@ function tintSprite(img, tint){
 function drawFighter(f,t){
   if(!f.alive) return;
   const isPlayer = !f.clone;
-  const glowName = isPlayer ? 'lime' : 'amber';
+  /* The squad is made of exact copies of you, so every fighter uses the same
+     survivor sprite and the same glow. Only a faint ring under the feet marks
+     which one is the original. */
+  const glowName = 'lime';
   const bob = Math.sin(t*3.4 + (f.bob||0))*1.0;
   const awake = Object.values(f.weapons).some(v=>v>=3) || Object.values(f.upgrades).some(v=>v>=3);
 
@@ -5635,6 +5840,14 @@ function drawFighter(f,t){
   ctx.beginPath();
   ctx.ellipse(0, 16, 13, 5, 0, 0, TAU);
   ctx.fill();
+  /* an identical squad: the only tell is a thin ring under the original */
+  if(isPlayer){
+    ctx.strokeStyle = 'rgba(214,255,170,.55)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(0, 16, 16 + Math.sin(t*3)*1.2, 6.2, 0, 0, TAU);
+    ctx.stroke();
+  }
 
   if(awake) glow(GLOW[glowName], 0, 0, 92, .15 + Math.sin(t*4)*.05);
   glow(GLOW[glowName], 0, 0, 46, .10);
@@ -5662,11 +5875,7 @@ function drawFighter(f,t){
   // pick the pose: attacking > walking > idle
   const swing = f.swingAnim > 0;
   const pose = swing ? 'playerAttack' : (f.moving ? 'playerWalk' : 'playerIdle');
-  let img = sprite(pose);
-  if(!isPlayer){
-    // clones share the survivor silhouette but read as amber allies
-    img = cloneSprite(pose);
-  }
+  const img = sprite(pose);
 
   const flip = (f.face || (f.aimAngle !== undefined ? Math.cos(f.aimAngle) : 1)) < 0
              || (f.lastDX !== undefined && f.lastDX < 0);
@@ -5692,19 +5901,6 @@ function drawFighter(f,t){
   }
 
   ctx.restore();
-}
-
-/* amber-shifted variants of the survivor poses (baked once) */
-const CLONE_SPR = {};
-function cloneSprite(pose){
-  if(!CLONE_SPR[pose]){
-    const base = sprite(pose);
-    if(!base) return null;
-    const pal = {p:PIX.a, P:PIX.A, q:PIX.b, Q:PIX.B};
-    const rows = SPR[pose].map(r=>r.split('').map(ch=>pal[ch]||ch).join(''));
-    CLONE_SPR[pose] = bakeSprite(rows, null);
-  }
-  return CLONE_SPR[pose];
 }
 
 /* the currently held weapon, drawn over the sprite */
@@ -6195,6 +6391,53 @@ function drawHazard(h,t){
     glow(GLOW.amber, 0, 0, 20, .5*arm);
     ctx.fillStyle = h.arm > 0 ? '#ffd7a0' : '#ff9d5c';
     ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill();
+  } else if(h.kind === 'bearclaw'){
+    // jaws on the ground: two toothed plates
+    ctx.fillStyle = 'rgba(22,28,24,.5)';
+    ctx.beginPath(); ctx.arc(0,0,h.r*.98,0,TAU); ctx.fill();
+    for(const side of [-1, 1]){
+      ctx.save();
+      ctx.translate(0, side*h.r*.34);
+      ctx.fillStyle = `rgba(150,162,172,${.85*k})`;
+      ctx.strokeStyle = 'rgba(40,50,46,.9)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-h.r*.8, 0);
+      ctx.lineTo(h.r*.8, 0);
+      ctx.lineTo(h.r*.62, side*-7);
+      ctx.lineTo(-h.r*.62, side*-7);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      for(let i=-2;i<=2;i++){
+        ctx.beginPath();
+        ctx.moveTo(i*h.r*.28, 0);
+        ctx.lineTo(i*h.r*.28 + 4, side*-13);
+        ctx.lineTo(i*h.r*.28 - 4, side*-13);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(232,242,255,${.9*k})`;
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    glow(GLOW.amber, 0, 0, h.r*1.2, .10 + .12*Math.sin(t*5 + h.seed));
+  } else if(h.kind === 'flamevent'){
+    const rr = h.r*(.92 + .06*Math.sin(t*7 + h.seed));
+    const fg = ctx.createRadialGradient(0,0,3,0,0,rr);
+    fg.addColorStop(0, `rgba(255,240,180,${.55*k})`);
+    fg.addColorStop(.45, `rgba(255,150,60,${.34*k})`);
+    fg.addColorStop(1, 'rgba(200,60,20,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.arc(0,0,rr,0,TAU); ctx.fill();
+    glow(GLOW.amber, 0, 0, rr*1.5, .22*k);
+    for(let i=0;i<7;i++){
+      const a = h.seed + i*TAU/7 + Math.sin(t*3+i)*.4;
+      const rr2 = rr*(.25 + .5*((t*1.4 + i*.37) % 1));
+      const fy = -((t*46 + i*9) % 26);
+      ctx.fillStyle = `rgba(255,${170 + (i%3)*20},90,${.55*k})`;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a)*rr2*.6, Math.sin(a)*rr2*.35 + fy*.5, 3.2, 0, TAU);
+      ctx.fill();
+    }
   } else if(h.kind === 'spike'){
     ctx.fillStyle = 'rgba(24,34,30,.55)';
     ctx.beginPath(); ctx.arc(0, 0, h.r*.96, 0, TAU); ctx.fill();
@@ -6576,6 +6819,42 @@ function drawTotem(tot,t){
   }
   ctx.restore();
 }
+function drawCage(cg,t){
+  const b = cg.building;
+  ctx.save();
+  ctx.translate(cg.x, cg.y);
+  // glow so a caged clone reads as an objective from across the room
+  const pulse = .5 + .5*Math.sin(t*2.2 + cg.seed);
+  glow(GLOW.lime, 0, 0, 90, cg.freed ? .18 : .12 + pulse*.12);
+  if(!cg.freed){
+    // the captive pacing inside
+    const img = sprite('playerIdle');
+    const sway = Math.sin(t*1.6 + cg.seed)*3;
+    if(img) blit(img, sway, -4, 1.5, Math.cos(t*.8+cg.seed) < 0, .85);
+    // bars in front
+    const cage = sprite('cageIdle');
+    if(cage) blit(cage, 0, 0, 2.2, false, 1);
+    // lock glint
+    ctx.fillStyle = `rgba(255,240,170,${.5+pulse*.5})`;
+    ctx.fillRect(-1.6, 12, 3.2, 3.2);
+  } else {
+    // sprung open: bars fly apart
+    const k = clamp(cg.open/.6, 0, 1);
+    const img = sprite('playerIdle');
+    if(img){ ctx.globalAlpha = k*.8; blit(img, 0, -4, 1.5, false, 1); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = `rgba(216,255,158,${k*.8})`;
+    ctx.lineWidth = 2;
+    for(let i=0;i<4;i++){
+      const a = i*TAU/4 + .4;
+      const r0 = 14 + (1-k)*6, r1 = r0 + 18*k;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*r0, Math.sin(a)*r0);
+      ctx.lineTo(Math.cos(a)*r1, Math.sin(a)*r1);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawMine2(m,t){
   if(m.arm > 0){
     ctx.save(); ctx.translate(m.x, m.y);
@@ -6709,6 +6988,7 @@ function render(t){
   for(const h of (game.holes||[])) if(visible(h.x,h.y,h.r+40)) drawHole(h,t);
   for(const tot of (game.totems||[])) if(visible(tot.x,tot.y,tot.radius+20)) drawTotem(tot,t);
   for(const m of (game.mines2||[])) if(visible(m.x,m.y,40)) drawMine2(m,t);
+  for(const cg of (game.cages||[])) if(visible(cg.x,cg.y,90)) drawCage(cg,t);
   for(const w of (game.shockwaves||[])) if(visible(w.x,w.y,w.length+40)) drawShockwave(w,t);
   for(const o of (game.orbitals||[])) if(visible(o.x,o.y,o.length*.6+40)) drawOrbital(o,t);
   for(const m of game.minions) if(visible(m.x,m.y,80)) drawMinion(m,t);
@@ -6903,8 +7183,14 @@ function drawMinimap(t){
     if(!e.alive || !visible(e.x, e.y, 900)) continue;
     ctx.fillRect(x + e.x*k - 1, y + e.y*k - 1, 2, 2);
   }
-  // clones
-  ctx.fillStyle = 'rgba(255,205,130,.9)';
+  // caged clones still waiting to be freed
+  for(const cg of (game.cages||[])){
+    if(cg.freed) continue;
+    ctx.fillStyle = 'rgba(255,240,170,.95)';
+    ctx.fillRect(x + cg.x*k - 2, y + cg.y*k - 2, 4, 4);
+  }
+  // clones: same colour as the player, they are the same unit
+  ctx.fillStyle = 'rgba(200,245,150,.9)';
   for(const c of game.clones){
     if(!c.alive) continue;
     ctx.fillRect(x + c.x*k - 1.5, y + c.y*k - 1.5, 3, 3);
@@ -7210,7 +7496,8 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     weaponLevel, WEAPONS, WEAPON_SPEC, hurt, step:(n,dt=.0167)=>{ for(let i=0;i<n;i++) tick(dt); },
     WORLD, cam, worldEnt, worldDepth, depthLabel, buildWorld, resolveSolid, makeEnemyAt,
     collectDrop, spawnBuildingLoot, spawnBuildingGuards, beginCooldown, beginRound, W, H,
-    sprite, SPR, drawFighter, drawEnemy, allyList, allyTargetsOf:()=>allyList()
+    sprite, SPR, drawFighter, drawEnemy, allyList, allyTargetsOf:()=>allyList(),
+    spawnBuildingCages, freeCage, spawnBoss, nearestSquadMember, trapVictims
   };
 }
 })();
