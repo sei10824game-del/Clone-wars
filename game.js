@@ -4243,11 +4243,16 @@ const GLOW = {
   red:   glowSprite('rgba(255,120,100,.9)'),
   blue:  glowSprite('rgba(150,225,255,.9)'),
   white: glowSprite('rgba(255,255,235,.9)'),
-  purple:glowSprite('rgba(190,170,255,.9)')
+  purple:glowSprite('rgba(190,170,255,.9)'),
+  orange:glowSprite('rgba(255,160,80,.9)')
 };
 function glow(img,x,y,size,alpha){
+  // A missing sprite used to reach drawImage() as undefined; Safari throws on
+  // that, which killed the requestAnimationFrame loop and froze the game.
+  if(!img) return;
+  if(!(size > 0) || !isFinite(x) || !isFinite(y)) return;
+  if(!isFinite(alpha)) alpha = 1;
   const prev = ctx.globalAlpha;
-  ctx.globalAlpha = alpha * prev;
   ctx.drawImage(img, x-size/2, y-size/2, size, size);
   ctx.globalAlpha = prev;
 }
@@ -6257,11 +6262,26 @@ function drawCooldownRing(t){
 }
 
 /* ------------------------------- loop ----------------------------- */
+let loopFaults = 0;
 function frame(ms){
-  const dt = Math.min((ms-last)/1000||0, .05);
-  last = ms;
-  tick(dt);
-  render(ms/1000);
+  // The loop must never die. Any exception used to escape frame() before the
+  // next requestAnimationFrame() call, which froze the game on a still screen.
+  try{
+    const dt = Math.min((ms-last)/1000||0, .05);
+    last = ms;
+    tick(dt);
+  }catch(err){
+    loopFaults++;
+    if(loopFaults <= 3) console.error('[clone-survivors] update error', err);
+  }
+  try{
+    render(ms/1000);
+  }catch(err){
+    // A render fault is non-fatal: keep the simulation running and skip the
+    // broken frame rather than locking up the whole tab.
+    loopFaults++;
+    if(loopFaults <= 3) console.error('[clone-survivors] render error', err);
+  }
   requestAnimationFrame(frame);
 }
 function togglePause(){
@@ -6427,7 +6447,10 @@ function resizeCanvas(){
   // expose the ratio so the overlay can compensate and stay readable.
   const shown = canvas.getBoundingClientRect().width || W;
   const k = Math.max(.45, Math.min(1.6, shown / W));
-  document.documentElement.style.setProperty('--field-scale', k.toFixed(3));
+  /* Safari can report 0 width before the first layout pass; a 0 here made the
+     counter-scaled HUD fonts blow up to the clamp limit and stack vertically
+     over the field, so only accept a sane measurement. */
+  if(k > 0 && isFinite(k)) document.documentElement.style.setProperty('--field-scale', k.toFixed(3));
 }
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('orientationchange', ()=>setTimeout(()=>{ resizeCanvas(); releaseTouch(); },180));
