@@ -158,7 +158,27 @@ const WEAPONS = [
    levels:[
      '攻撃してきた敵にダメージを返す棘の鎧をまとう。',
      '反撃ダメージが増加し、触れた敵を怯ませる。',
-     '覚醒：棘が爆発し、周囲の敵をまとめて吹き飛ばす。']}
+     '覚醒：棘が爆発し、周囲の敵をまとめて吹き飛ばす。']},
+  {id:'brainwash', icon:'❂', name:'ブレインウォッシュ', tag:'UTILITY',
+   levels:[
+     '近くの敵1体を洗脳し、味方として戦わせる。',
+     '洗脳数が2体に増え、効果時間が伸びる。',
+     '覚醒：3体を洗脳し、洗脳中は与ダメージが上昇する。']},
+  {id:'terror', icon:'☾', name:'テラーパルス', tag:'UTILITY',
+   levels:[
+     '周囲の敵を恐怖に陥れ、一定時間逃げ回らせる。',
+     '恐怖時間が伸び、範囲が広がる。',
+     '覚醒：逃げる敵が弱体化し、被ダメージが増える。']},
+  {id:'curse', icon:'☠', name:'カースマーク', tag:'UTILITY',
+   levels:[
+     '近くの敵に呪印を刻み、受けるダメージを増やす。',
+     '呪印の数と増加量が上昇する。',
+     '覚醒：呪印の敵を倒すと爆発し、周囲を巻き込む。']},
+  {id:'pacify', icon:'✧', name:'パシファイフィールド', tag:'UTILITY',
+   levels:[
+     '範囲内の敵の攻撃を封じ、動きを止める。',
+     '範囲と拘束時間が伸びる。',
+     '覚醒：拘束中の敵は防御も下がる。']}
 ];
 
 const WEAPON_SPEC = {
@@ -257,7 +277,23 @@ const WEAPON_SPEC = {
   thorn:[
     {dmg:.55, radius:52,  knock:12},
     {dmg:.80, radius:66,  knock:20},
-    {dmg:1.10, radius:88,  knock:36}]
+    {dmg:1.10, radius:88,  knock:36}],
+  brainwash:[
+    {cd:9.0, count:1, radius:260, duration:7,  dmgMul:1.0},
+    {cd:7.5, count:2, radius:300, duration:10, dmgMul:1.0},
+    {cd:6.0, count:3, radius:340, duration:13, dmgMul:1.4}],
+  terror:[
+    {cd:8.0, radius:190, duration:2.4, weak:0},
+    {cd:6.5, radius:230, duration:3.4, weak:0},
+    {cd:5.0, radius:270, duration:4.2, weak:1}],
+  curse:[
+    {cd:6.5, count:3, radius:300, duration:6, amp:.35},
+    {cd:5.2, count:5, radius:340, duration:8, amp:.50},
+    {cd:4.2, count:6, radius:380, duration:10, amp:.65}],
+  pacify:[
+    {cd:10.0, radius:170, duration:1.6},
+    {cd:8.0,  radius:205, duration:2.4},
+    {cd:6.4,  radius:240, duration:3.2}]
 };
 
 const STATS = [
@@ -293,7 +329,7 @@ function fighter(x,y,clone=false){
     upgrades:{}, weapons:{rifle:1},
     cd:{rifle:rand(.05,.4), shotgun:0, chain:0, zombie:0, nova:0, wisp:0, mine:0, spike:0, poison:0,
         railgun:0, ricochet:0, flak:0, holy:0, boomerang:0, turret:0, guardian:0, vortex:0, beam:0, blizzard:0,
-        cloak:0, decoy:0, chrono:0},
+        cloak:0, decoy:0, chrono:0, brainwash:0, terror:0, curse:0, pacify:0},
     bladesBack:[], torusCd:0, swingAnim:0, aimAngle:-Math.PI/2, face:1, shield:0,
     invisible:0, cloakCd:0, haste:0, thornCd:0,
     orbitPhase:rand(0,TAU), blades:[],
@@ -378,7 +414,8 @@ function applyCard(f,id){
     const cdKey = {zombie:'zombie', wisp:'wisp', mine:'mine', spike:'spike', poison:'poison',
                    railgun:'railgun', ricochet:'ricochet', flak:'flak', holy:'holy',
                    boomerang:'boomerang', turret:'turret', vortex:'vortex', beam:'beam',
-                   blizzard:'blizzard', cloak:'cloak', decoy:'decoy', chrono:'chrono'}[id];
+                   blizzard:'blizzard', cloak:'cloak', decoy:'decoy', chrono:'chrono',
+                   brainwash:'brainwash', terror:'terror', curse:'curse', pacify:'pacify'}[id];
     if(lv === 0 && cdKey && f.cd[cdKey] !== undefined) f.cd[cdKey] = .45;
     if(lv === 0 && id === 'turret') f.cd.turret = .1;
     if(id === 'drone') syncDrones(f);
@@ -1261,24 +1298,57 @@ function eliteUpgrade(e){
 }
 
 /* ------------------------------ enemies --------------------------- */
-function makeEnemyAt(x, y){
+/* ------------------------------------------------------------------ *
+ *  ENEMY ROSTER                                                      *
+ *  Ten species. Each has its own silhouette, its own trick, and a     *
+ *  stage at which it starts appearing, so the horde keeps changing.   *
+ * ------------------------------------------------------------------ */
+const ENEMY_TYPES = {
+  grunt:    {hp:30+0, r:13, speed:55, dmg:9,  xp:12, from:1,  weight:1.0},
+  runner:   {hp:20,    r:10, speed:94, dmg:7,  xp:11, from:1,  weight:1.1},
+  brute:    {hp:72,    r:20, speed:38, dmg:15, xp:30, from:3,  weight:0.7},
+  spitter:  {hp:34,    r:12, speed:46, dmg:9,  xp:22, from:4,  weight:0.7, ranged:1, keep:210},
+  bomber:   {hp:26,    r:14, speed:72, dmg:14, xp:18, from:5,  weight:0.6, explode:1},
+  shielder: {hp:88,    r:16, speed:42, dmg:9,  xp:28, from:6,  weight:0.5, aura:'shield'},
+  splitter: {hp:56,    r:16, speed:52, dmg:10, xp:24, from:7,  weight:0.6, split:1},
+  healer:   {hp:60,    r:14, speed:44, dmg:6,  xp:34, from:8,  weight:0.45, aura:'heal'},
+  stalker:  {hp:44,    r:12, speed:80, dmg:13, xp:30, from:9,  weight:0.5, blink:1},
+  colossus: {hp:150,   r:24, speed:32, dmg:20, xp:55, from:11, weight:0.35}
+};
+
+function makeEnemyAt(x, y, forcedType){
   const st = game.stage;
-  const bruteChance = Math.min(.10 + st*.022, .30);
-  const runnerChance = Math.min(.16 + st*.03, .38);
-  const roll = Math.random();
-  let type = 'grunt';
-  if(roll < bruteChance) type = 'brute';
-  else if(roll < bruteChance + runnerChance) type = 'runner';
-  const base = {
-    grunt:  {hp:30+st*4,  r:13, speed:55+Math.min(st*2,30),   dmg:9,  xp:12},
-    runner: {hp:20+st*2.6,r:10, speed:94+Math.min(st*2.4,34), dmg:7,  xp:11},
-    brute:  {hp:72+st*8,  r:20, speed:38+Math.min(st*1.6,25), dmg:15, xp:30}
-  }[type];
+  let type = forcedType;
+  if(!type){
+    // weighted pick among the species unlocked at this stage
+    let total = 0;
+    const pool = [];
+    for(const [id, def] of Object.entries(ENEMY_TYPES)){
+      if(def.from > st) continue;
+      const w = def.weight * (def.from === st ? 1.6 : 1);   // newcomers show up promptly
+      total += w;
+      pool.push([id, w]);
+    }
+    let roll = Math.random()*total;
+    type = 'grunt';
+    for(const [id, w] of pool){
+      roll -= w;
+      if(roll <= 0){ type = id; break; }
+    }
+  }
+  const def = ENEMY_TYPES[type] || ENEMY_TYPES.grunt;
+  const scale = 1 + (st-1)*.16;
   const e = {
-    x, y, type, r:base.r, hp:base.hp, maxHp:base.hp, speed:base.speed,
-    damage:base.dmg, xp:base.xp, hit:0, stun:0, slow:0, orbitCd:0,
+    x, y, type, r:def.r,
+    hp:Math.round(def.hp*scale), maxHp:Math.round(def.hp*scale),
+    speed:def.speed + Math.min(st*1.4, 26),
+    damage:def.dmg + Math.floor(st*.8), xp:def.xp,
+    hit:0, stun:0, slow:0, orbitCd:0,
     seed:rand(0,100), wob:rand(0,TAU), alive:true,
-    swing:0, atkCd:0, face:0, lunge:0
+    swing:0, atkCd:0, face:0, lunge:0,
+    ranged:!!def.ranged, keep:def.keep||0, explode:!!def.explode,
+    auraType:def.aura||null, split:!!def.split, blinkCd:def.blink?rand(2,4):0,
+    fear:0, charm:0, cursed:0, pacified:0
   };
   game.enemies.push(e);
   return e;
@@ -1328,6 +1398,7 @@ function nearest(f){
   let best = null, d = Infinity;
   for(const t of game.enemies){
     if(!t.alive) continue;
+    if(t.charm > 0) continue;          // dominated enemies are allies now
     const dd = dist(f,t);
     if(dd < d){ best = t; d = dd; }
   }
@@ -1710,6 +1781,22 @@ function updateWeapons(f,dt,target){
     if(f.cd.chrono <= 0) chronoCast(f);
   }
   if(w.thorn) f.thornCd = Math.max(0, (f.thornCd||0) - dt);
+  if(w.brainwash){
+    f.cd.brainwash -= dt;
+    if(f.cd.brainwash <= 0) brainwashCast(f);
+  }
+  if(w.terror){
+    f.cd.terror -= dt;
+    if(f.cd.terror <= 0) terrorCast(f);
+  }
+  if(w.curse){
+    f.cd.curse -= dt;
+    if(f.cd.curse <= 0) curseCast(f);
+  }
+  if(w.pacify){
+    f.cd.pacify -= dt;
+    if(f.cd.pacify <= 0) pacifyCast(f);
+  }
 }
 
 
@@ -2020,6 +2107,93 @@ function thornBurst(f){
   particles(f.x,f.y,'#d5c4ff',10,.9);
 }
 
+
+/* ================================================================== *
+ *  MIND CONTROL — cards that turn the horde against itself           *
+ * ================================================================== */
+/* nearest N enemies inside a radius, used by every control card */
+function nearestEnemies(f, radius, n, filter){
+  const list = [];
+  for(const e of game.enemies){
+    if(!e.alive || e.boss) continue;
+    if(filter && !filter(e)) continue;
+    const d = dist(f, e);
+    if(d < radius) list.push([d, e]);
+  }
+  list.sort((a,b)=>a[0]-b[0]);
+  return list.slice(0, n).map(v=>v[1]);
+}
+
+function brainwashCast(f){
+  const lv = weaponLevel(f,'brainwash'), spec = WEAPON_SPEC.brainwash[lv-1];
+  const already = game.enemies.filter(e=>e.alive && e.charm > 0).length;
+  const room = Math.max(0, spec.count - already);
+  if(room <= 0){ f.cd.brainwash = 2; return; }
+  const picked = nearestEnemies(f, spec.radius, room, e=>!(e.charm > 0));
+  if(!picked.length){ f.cd.brainwash = 2; return; }
+  for(const e of picked){
+    e.charm = spec.duration;
+    e.charmMul = spec.dmgMul;
+    e.summoned = false;
+    e.damage = Math.round(e.damage * 1.5);
+    e.hp = Math.min(e.maxHp * 1.8, e.hp * 1.8);
+    e.maxHp = Math.max(e.maxHp, Math.round(e.hp));
+    e.speed *= 1.15;
+    particles(e.x, e.y, '#c9a2ff', 14, 1.2);
+    game.rings.push({x:e.x,y:e.y,r:10,maxR:64,life:.4,max:.4,color:'#c9a2ff',width:3});
+  }
+  f.cd.brainwash = spec.cd;
+  f.cast = .3;
+  notice('BRAINWASH', picked.length + ' 体を支配下に置いた');
+}
+
+function terrorCast(f){
+  const lv = weaponLevel(f,'terror'), spec = WEAPON_SPEC.terror[lv-1];
+  const picked = nearestEnemies(f, spec.radius, 99);
+  for(const e of picked){
+    e.fear = spec.duration;
+    e.stun = 0;
+    if(spec.weak) e.cursed = Math.max(e.cursed, spec.duration);
+    particles(e.x, e.y, '#7ab8ff', 8, 1);
+  }
+  game.rings.push({x:f.x,y:f.y,r:20,maxR:spec.radius,life:.55,max:.55,color:'#7ab8ff',width:5});
+  particles(f.x, f.y, '#9ccfff', 24, 1.5);
+  f.cd.terror = spec.cd;
+  f.cast = .3;
+}
+
+function curseCast(f){
+  const lv = weaponLevel(f,'curse'), spec = WEAPON_SPEC.curse[lv-1];
+  const picked = nearestEnemies(f, spec.radius, spec.count);
+  for(const e of picked){
+    e.curseAmp = spec.amp;
+    e.curseOwner = f;
+    particles(e.x, e.y, '#b46bff', 9, 1);
+    game.rings.push({x:e.x,y:e.y,r:6,maxR:34,life:.35,max:.35,color:'#b46bff',width:2});
+  }
+  f.cd.curse = spec.cd;
+  f.cast = .24;
+}
+
+function pacifyCast(f){
+  const lv = weaponLevel(f,'pacify'), spec = WEAPON_SPEC.pacify[lv-1];
+  game.hazards.push({
+    kind:'pacify', owner:f, lv, x:f.x, y:f.y, r:spec.radius,
+    dmg:0, tick:0, tickRate:.4, life:spec.duration + .6, maxLife:spec.duration + .6,
+    seed:rand(0,100), alive:true
+  });
+  const picked = nearestEnemies(f, spec.radius, 99);
+  for(const e of picked){
+    e.pacified = spec.duration;
+    e.swing = 0;
+    if(lv >= 3) e.cursed = Math.max(e.cursed, spec.duration);
+    particles(e.x, e.y, '#ffe9a3', 6, .8);
+  }
+  game.rings.push({x:f.x,y:f.y,r:20,maxR:spec.radius,life:.6,max:.6,color:'#ffe9a3',width:4});
+  f.cd.pacify = spec.cd;
+  f.cast = .28;
+}
+
 /* --------------------------- boss attacks ------------------------- */
 function bossShot(e, angle, speed, dmg, r, color){
   game.bullets.push({
@@ -2096,6 +2270,14 @@ function damageText(x,y,amount,color){
 function hurt(t, amount, source){
   if(!t || !t.alive) return;
   if(t.invuln > 0) return;
+  /* shielder aura: nearby enemies take less damage */
+  if(t.hp !== undefined && t.level === undefined && t.owner === undefined &&
+     !t.boss && !t.charm && game.enemies){
+    for(const sh of game.enemies){
+      if(!sh.alive || sh.auraType !== 'shield') continue;
+      if(dist(sh, t) < 140){ amount *= .55; break; }
+    }
+  }
   /* thorn armour punishes anything that lands a blow on the wearer */
   if(t.level !== undefined && t.weapons && t.weapons.thorn && (t.thornCd||0) <= 0){
     t.thornCd = .45;
@@ -2103,6 +2285,15 @@ function hurt(t, amount, source){
   }
   /* awakened guardian shield: fighters (never enemies) soak part of the hit */
   if(t.shield > 0 && t.level !== undefined) amount *= .62;
+  /* cursed enemies take extra damage from everything */
+  if(t.curseAmp && t.level === undefined){
+    amount *= 1 + t.curseAmp;
+    t.curseAmp = 0;   // the mark burns off after one amplified hit
+  }
+  /* awakened brainwashing makes its puppets hit harder */
+  /* charmed units are powered up: they hit hard and take less punishment */
+  if(source && source.charm > 0 && source.charmMul > 1 && t.level === undefined) amount *= source.charmMul;
+  if(t.charm > 0) amount *= .55;
   /* ---- summoned allies are destructible ---- */
   if(t.owner !== undefined && t.hp !== undefined && t.level === undefined){
     t.hp -= amount;
@@ -2152,6 +2343,18 @@ function hurt(t, amount, source){
           grantXp(killer, t.xp);
         }
       }
+    }
+    if(t.split && !t.boss && !t.charm){
+      for(let i=0;i<2;i++){
+        if(game.enemies.length > 110) break;
+        const a = rand(0,TAU);
+        const kid = makeEnemyAt(clamp(t.x+Math.cos(a)*22, 20, WORLD_W-20),
+                                clamp(t.y+Math.sin(a)*22, 20, WORLD_H-20), 'runner');
+        kid.hp = Math.round(kid.maxHp*.7);
+        kid.maxHp = kid.hp;
+        kid.xp = Math.round(kid.xp*.5);
+      }
+      particles(t.x, t.y, '#d8a2ff', 12, 1.1);
     }
     if(t.clone){
       if(t.state !== null){
@@ -2554,11 +2757,53 @@ function tick(dt){
     e.orbitCd = Math.max(0, e.orbitCd-dt);
     e.stun = Math.max(0, e.stun-dt);
     e.slow = Math.max(0, e.slow-dt);
+    e.charm = Math.max(0, (e.charm||0)-dt);
+    e.fear = Math.max(0, (e.fear||0)-dt);
+    e.cursed = Math.max(0, (e.cursed||0)-dt);
+    e.pacified = Math.max(0, (e.pacified||0)-dt);
     if(e.stun > 0) continue;
+
+    /* ---- special abilities that do not need a target ---- */
+    // healer: pulses HP into nearby wounded allies
+    if(e.auraType === 'heal'){
+      e.atkCd = Math.max(0, (e.atkCd||0) - dt);
+      if(e.atkCd <= 0){
+        e.atkCd = 2.6;
+        for(const o of game.enemies){
+          if(!o.alive || o === e || o.hp >= o.maxHp) continue;
+          if(dist(e,o) < 130){
+            o.hp = Math.min(o.maxHp, o.hp + o.maxHp*.22);
+            particles(o.x, o.y, '#8fe6a0', 6, .8);
+          }
+        }
+        game.rings.push({x:e.x,y:e.y,r:16,maxR:130,life:.4,max:.4,color:'#8fe6a0',width:2});
+      }
+    }
+    // stalker: short blink toward its prey
+    if(e.blinkCd > 0){
+      e.blinkCd -= dt;
+      if(e.blinkCd <= 0){
+        e.blinkCd = rand(3.2, 5.4);
+        const px = (game.player && game.player.alive) ? game.player : null;
+        if(px && dist(e,px) < 520){
+          const a = Math.atan2(px.y-e.y, px.x-e.x);
+          particles(e.x, e.y, '#c9a2ff', 10, 1);
+          e.x = clamp(e.x + Math.cos(a)*130, 20, WORLD_W-20);
+          e.y = clamp(e.y + Math.sin(a)*130, 20, WORLD_H-20);
+          resolveSolid(e);
+          particles(e.x, e.y, '#c9a2ff', 10, 1);
+        }
+      }
+    }
     let target = null, d = Infinity;
-    for(const f of allyTargets){
+    /* a charmed enemy is on our side: it hunts other enemies instead */
+    const pool = e.charm > 0
+      ? game.enemies.filter(o => o.alive && o !== e && !(o.charm > 0))
+      : allyTargets;
+    for(const f of pool){
       if(!f.alive) continue;
       if(f.invisible > 0) continue;                // cloaked allies cannot be seen
+      if(e.charm > 0 && f.charm > 0) continue;     // never fight other charmed units
       const nd = dist(e,f);
       // the player is the real prize: slight bias keeps the horde pressing in
       let score = nd * (f === game.player ? 0.9 : 1);
@@ -2566,6 +2811,18 @@ function tick(dt){
       if(score < d){ d = score; target = f; }
     }
     if(target) d = dist(e, target);
+    // terrified enemies run the other way for a moment
+    if(e.fear > 0 && target && d < 260){
+      const a = Math.atan2(e.y-target.y, e.x-target.x);
+      e.x = clamp(e.x + Math.cos(a)*e.speed*1.5*dt, 12, WORLD_W-12);
+      e.y = clamp(e.y + Math.sin(a)*e.speed*1.5*dt, 12, WORLD_H-12);
+      resolveSolid(e);
+      if(e.swing > 0) e.swing = Math.max(0, e.swing - dt);
+      continue;
+    }
+    // pacified enemies (charm that has worn off badly) just stand there
+    if(e.pacified > 0){ if(e.swing > 0) e.swing = Math.max(0, e.swing - dt); continue; }
+    if(e.charm > 0) e.navGoal = target ? {x:target.x, y:target.y} : e.navGoal;
     /* Summoned minions are only loyal to their summoner: once the squad is
        out of reach they turn on any other enemy, so the battlefield stays
        chaotic instead of every summon beelining for the player. */
@@ -2593,6 +2850,12 @@ function tick(dt){
       let dx = (ax-e.x), dy = (ay-e.y);
       const al = Math.hypot(dx,dy) || 1;
       dx /= al; dy /= al;
+      /* ranged species hold their distance instead of hugging the player */
+      if(e.ranged && e.keep){
+        const straight = dist(e, target);
+        if(straight < e.keep*.92){ dx = -dx; dy = -dy; }
+        else if(straight < e.keep*1.08){ dx = 0; dy = 0; }
+      }
       // light separation so the horde spreads out instead of stacking
       for(const o of game.enemies){
         if(o === e || !o.alive) continue;
@@ -2645,6 +2908,44 @@ function tick(dt){
       }
       if(e.swing > 0) e.swing = Math.max(0, e.swing - dt);
       if(e.atkCd > 0) e.atkCd = Math.max(0, e.atkCd - dt*0.6);
+    }
+
+    /* ---- ranged species: spit a projectile at the player ---- */
+    if(e.ranged && target && target.level !== undefined){
+      e.shootCd = Math.max(0, (e.shootCd === undefined ? rand(.6,1.6) : e.shootCd) - dt);
+      if(e.shootCd <= 0 && dist(e, target) < 340){
+        e.shootCd = 1.9 + Math.random()*.7;
+        e.swing = .34;
+        const a = Math.atan2(target.y-e.y, target.x-e.x);
+        game.bullets.push({
+          x:e.x+Math.cos(a)*14, y:e.y+Math.sin(a)*14, px:e.x, py:e.y,
+          vx:Math.cos(a)*250, vy:Math.sin(a)*250,
+          life:1.6, maxLife:1.6, damage:e.damage*.8, owner:null, hostile:true,
+          r:5, pierce:0, hitList:[], color:'#c9ff9a'
+        });
+        particles(e.x+Math.cos(a)*16, e.y+Math.sin(a)*16, '#c9ff9a', 4, .7);
+      }
+    }
+
+    /* ---- bomber: detonates once it is close enough ---- */
+    if(e.explode){
+      e.fuse = e.fuse === undefined ? 1 : e.fuse;
+      const near = allyTargets.some(f => f.alive && dist(e,f) < 74);
+      if(near) e.fuse -= dt*1.8; else e.fuse -= dt*.25;
+      if(e.fuse <= 0){
+        for(const f of allyTargets){
+          if(f.alive && dist(e,f) < 96){
+            hurt(f, e.damage*1.6, e);
+            if(f.level !== undefined) f.invuln = Math.max(f.invuln, .2);
+          }
+        }
+        game.rings.push({x:e.x,y:e.y,r:12,maxR:96,life:.42,max:.42,color:'#ffb066',width:5});
+        particles(e.x,e.y,'#ffca8a',20,1.6);
+        shake = Math.min(shake+3, 6);
+        e.alive = false;
+        game.kills++;
+        continue;
+      }
     }
   }
 
@@ -3582,6 +3883,166 @@ SPR.bruteIdle = [
   '....kSSk....kSSk....'
 ];
 
+/* ---------- spitter: hunched, acid sac on its back ---------- */
+SPR.spitterIdle = [
+  '...kkkkkkkk...',
+  '..krrrrrrrrk..',
+  '.krrrrrrrrrrk.',
+  '.krwwkrrkwwrk.',
+  '.krwkkrrkkwrk.',
+  'krrrrrrrrrrrrk',
+  'krrRRssssRRrrk',
+  '.krRsSSSSsRrk.',
+  '..kkrrrrrrkk..',
+  '...kvVvvVvk...',
+  '..kvVcyycVvk..',
+  '...kvvvvvvk...',
+  '....kRkkRk....',
+  '....kSk.kSk...'
+];
+/* ---------- bomber: swollen, lit fuse ---------- */
+SPR.bomberIdle = [
+  '.......yy.....',
+  '......yYy.....',
+  '...kkkkkkkk...',
+  '..koooooooook.',
+  '.kooooooooooook',
+  '.kowokoooowok..',
+  '.kowkkoookkwok.',
+  'kooooooooooook.',
+  'kooOoooooooOok.',
+  '.koooooooooook.',
+  '..kOOkkkkOOOk.',
+  '...kkRRRRkk...',
+  '...kRk..kRk...',
+  '..kSk....kSk..'
+];
+SPR.bomberWalk = [
+  '.......yy.....',
+  '......yYy.....',
+  '...kkkkkkkk...',
+  '..koooooooook.',
+  '.kooooooooooook',
+  '.kowokoooowok..',
+  '.kowkkoookkwok.',
+  'kooooooooooook.',
+  'kooOoooooooOok.',
+  '.koooooooooook.',
+  '..kOOkkkkOOOk.',
+  '...kkRRRRkk...',
+  '..kRk......kRk',
+  '.kSk........kS'
+];
+/* ---------- shielder: wall of plate with a broad shield ---------- */
+SPR.shielderIdle = [
+  '....kkkkkkkk....',
+  '..kkrrrrrrrrkk..',
+  '.krrrrrrrrrrrrk.',
+  '.krwrrrrrrrwrrk.',
+  '.krwkrrrrkwrrrk.',
+  '.krrrrrrrrrrrrk.',
+  'kmmmmmmmmmmmmmmk',
+  'kmMMMmmmmmMMMmmk',
+  'kmMcMMMMMMMMcMmk',
+  'kmMcMMMMMMMMcMmk',
+  'kmMMMmmmmmMMMmmk',
+  'kmmmmmmmmmmmmmmk',
+  '.kkrrrrrrrrrrkk.',
+  '..kRRkkkkkkRRk..',
+  '..kSSk....kSSk..'
+];
+/* ---------- splitter: gelatinous mass with a visible core ---------- */
+SPR.splitterIdle = [
+  '.....kkkkkk.....',
+  '...kkvvVVvvkk...',
+  '..kvvVVVVVVvvk..',
+  '.kvvVVyyyyVVvvk.',
+  '.kvVVywwwwyVVvk.',
+  'kvvVVywwwwyVVvvk',
+  'kvVVVVyyyyVVVVvk',
+  'kvvVVVVVVVVVVvvk',
+  '.kvVVVVVVVVVVvk.',
+  '.kvvVVVVVVVVvvk.',
+  '..kvvvVVVVvvvk..',
+  '...kkvvvvvvkk...',
+  '.....kRkkRk.....',
+  '.....kSk.kSk....'
+];
+/* ---------- healer: robed figure with a lantern ---------- */
+SPR.healerIdle = [
+  '......kkkk......',
+  '.....kggggk.....',
+  '....kgwwwwgk....',
+  '....kgwkkwgk....',
+  '....kgwwwwgk....',
+  '.....kggggk.....',
+  '....kggggggk....',
+  '...kggGGGGggk...',
+  '..kggGGyyGGggk..',
+  '..kggGGyyGGggk..',
+  '..kggGGGGGGggk..',
+  '..kggggggggggk..',
+  '...kgggk.kgggk..',
+  '...kGGGk.kGGGk..'
+];
+/* ---------- stalker: tall, thin, long claws ---------- */
+SPR.stalkerIdle = [
+  '.....kkkk.....',
+  '....kvvvvk....',
+  '...kvwvvwvk...',
+  '...kvkvvkvk...',
+  '...kvvvvvvk...',
+  '....kvssvk....',
+  '.....kvvk.....',
+  '...kkvVVvkk...',
+  '..kvkvVVvkvk..',
+  '..kvkvvvvkvk..',
+  '...k.kvvk.k...',
+  '.....kvvk.....',
+  '....kVkkVk....',
+  '...kVk..kVk...',
+  '..kSk....kSk..'
+];
+SPR.stalkerWalk = [
+  '.....kkkk.....',
+  '....kvvvvk....',
+  '...kvwvvwvk...',
+  '...kvkvvkvk...',
+  '...kvvvvvvk...',
+  '....kvssvk....',
+  '.....kvvk.....',
+  '...kkvVVvkk...',
+  '..kvkvVVvkvk..',
+  '.kvk.kvvk.kvk.',
+  '.k...kvvk...k.',
+  '.....kvvk.....',
+  '...kVk..kVk...',
+  '..kSk......kSk',
+  '.kSk........kS'
+];
+/* ---------- colossus: huge armoured walker ---------- */
+SPR.colossusIdle = [
+  '.....kkkkkkkkkk.....',
+  '...kkRRRRRRRRRRkk...',
+  '..kRRRRRRRRRRRRRRk..',
+  '.kRRkkkkkkkkkkkkRRk.',
+  '.kRkSSSSSSSSSSSSkRk.',
+  '.kRkSrrrrrrrrrrSSkRk',
+  'kRRkSrrwwkkwwrrSSkRRk',
+  'kRkSrrwwkkkkwwrrSkRk',
+  'kRkSrwkkyyyykwrSkRk.',
+  'kRRkSrrwwkkkkwwrrSkRR',
+  '.kRkSrrrrrrrrrrSSkRk.',
+  '.kRkSSSSSSSSSSSSkRk.',
+  '.kRRkkkkkkkkkkkkRRk.',
+  '..kRRRRRRRRRRRRRRk..',
+  '...kkRRRRRRRRRRkk...',
+  '....kkk.kkkk.kkk....',
+  '...kMMMk....kMMMk...',
+  '...kMmMk....kMmMk...',
+  '..kMMMMMk..kMMMMMk..'
+];
+
 /* ---------- boss: armoured core with a heavy shell ---------- */
 SPR.bossIdle = [
   '........kkkkkkkk........',
@@ -3785,15 +4246,19 @@ function drawEnemy(e,t){
   const puff  = 1 + wind*0.13 - strike*0.09;
   const flash = wind > 0.55;
 
-  const pose = e.moving || e.type === 'runner' ? 'Walk' : 'Idle';
+  const pose = e.moving ? 'Walk' : 'Idle';
+  const animPairs = { grunt:1, runner:1, bomber:1, stalker:1 };
   let name;
   if(e.type === 'brute') name = 'bruteIdle';
-  else if(e.type === 'runner') name = 'runner' + pose;
-  else name = 'grunt' + pose;
+  else if(animPairs[e.type] && SPR[e.type + pose]) name = e.type + pose;
+  else name = e.type + 'Idle';
+  if(!SPR[name]) name = 'grunt' + (SPR['grunt'+pose] ? pose : 'Idle');
   let img = sprite(name);
 
   const flip = (e.face || 0) < 0;
-  const sc = e.type === 'brute' ? (e.r*2.15)/16 : (e.r*2.1)/12;
+  const frameW = SPR[name] ? Math.max(...SPR[name].map(r=>r.length)) : 12;
+  const frameH = SPR[name] ? SPR[name].length : 12;
+  const sc = (e.r*2.5)/Math.max(frameW, frameH);
   const dirx = e.navGoal ? Math.sign(e.navGoal.x - e.x) : 1;
 
   ctx.save();
@@ -3815,6 +4280,60 @@ function drawEnemy(e,t){
     ctx.globalAlpha = 1;
   }
 
+  /* ---- mind-control visuals ---- */
+  if(e.charm > 0){
+    glow(GLOW.purple, 0, 0, e.r*5.2, .34);
+    ctx.strokeStyle = 'rgba(201,162,255,.75)';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([5,5]);
+    ctx.beginPath(); ctx.arc(0, bob, e.r*1.5, t*1.4, t*1.4 + TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    // little broken-heart / halo to read as "dominated"
+    ctx.fillStyle = '#e0ccff';
+    ctx.beginPath();
+    ctx.moveTo(-5, -e.r - 10 + Math.sin(t*5)*1.6);
+    ctx.lineTo(0, -e.r - 15 + Math.sin(t*5)*1.6);
+    ctx.lineTo(5, -e.r - 10 + Math.sin(t*5)*1.6);
+    ctx.closePath(); ctx.fill();
+  }
+  if(e.fear > 0){
+    glow(GLOW.blue, 0, 0, e.r*4.6, .3);
+    ctx.strokeStyle = 'rgba(150,210,255,.6)';
+    ctx.lineWidth = 1.4;
+    for(let i=0;i<3;i++){
+      const a = t*7 + i*TAU/3;
+      ctx.beginPath();
+      ctx.arc(0, bob, e.r*1.35, a, a + .5); ctx.stroke();
+    }
+  }
+  if(e.cursed > 0 || e.curseAmp){
+    ctx.strokeStyle = 'rgba(180,107,255,.7)';
+    ctx.lineWidth = 1.4;
+    for(let i=0;i<3;i++){
+      const a = i*TAU/3 + t*.9;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*e.r*1.1, Math.sin(a)*e.r*1.1 + bob);
+      ctx.lineTo(Math.cos(a+.35)*e.r*1.45, Math.sin(a+.35)*e.r*1.45 + bob);
+      ctx.stroke();
+    }
+  }
+  if(e.pacified > 0){
+    glow(GLOW.amber, 0, 0, e.r*4.4, .28);
+    ctx.strokeStyle = 'rgba(255,233,163,.65)';
+    ctx.lineWidth = 1.6;
+    ctx.save();
+    ctx.translate(0, -e.r - 12 + bob);
+    ctx.beginPath(); ctx.arc(-4, 0, 2.6, 0, TAU); ctx.fillStyle='#ffe9a3'; ctx.fill();
+    ctx.beginPath(); ctx.arc(4, 0, 2.6, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  // healer / shielder support auras
+  if(e.auraType){
+    const a2 = e.auraType === 'heal' ? 'rgba(143,230,160,' : 'rgba(126,180,255,';
+    ctx.strokeStyle = a2 + (.18 + Math.sin(t*2.4)*.06) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, e.auraType === 'heal' ? 130 : 140, 0, TAU); ctx.stroke();
+  }
   // frozen crust
   if(e.slow > 0){
     ctx.strokeStyle = 'rgba(170,230,255,.5)';
@@ -3844,7 +4363,9 @@ function drawEnemy(e,t){
     ctx.lineWidth = 1; ctx.stroke();
     ctx.restore();
   }
-  if((e.hp < e.maxHp && e.type === 'brute') || e.elite){
+  const wantsBar = e.hp < e.maxHp &&
+    (e.type === 'brute' || e.type === 'colossus' || e.type === 'shielder' || e.type === 'healer' || e.type === 'splitter');
+  if(wantsBar || e.elite){
     const w = e.r*2.2;
     ctx.fillStyle = 'rgba(8,14,10,.7)';
     rrect(ctx, e.x-w/2, e.y-e.r-13, w, 4, 2); ctx.fill();
