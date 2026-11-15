@@ -178,7 +178,38 @@ const WEAPONS = [
    levels:[
      '範囲内の敵の攻撃を封じ、動きを止める。',
      '範囲と拘束時間が伸びる。',
-     '覚醒：拘束中の敵は防御も下がる。']}
+     '覚醒：拘束中の敵は防御も下がる。']},
+  /* ---------------- ON KILL family ---------------- */
+  {id:'reanimate', icon:'⚱', name:'リ・アニメイト', tag:'ON KILL',
+   levels:[
+     '敵を倒すと、その敵が味方として蘇る（能力はそのまま）。',
+     '復活する確率と持続時間が上がる。',
+     '覚醒：倒した敵を必ず2体の仲間にする。']},
+  {id:'chainblast', icon:'✸', name:'チェイン・ブラスト', tag:'ON KILL',
+   levels:[
+     '敵を倒すと爆発し、周囲の敵を巻き込む。',
+     '爆発範囲と威力が上昇する。',
+     '覚醒：爆発が連鎖し、倒した敵もまた爆発する。']},
+  {id:'bloodlust', icon:'❣', name:'ブラッドラスト', tag:'ON KILL',
+   levels:[
+     '敵を倒すたびにHPを少量回復する。',
+     '回復量が増え、移動速度も一時的に上がる。',
+     '覚醒：撃破で攻撃速度が上がり、連続撃破で強化が重なる。']},
+  {id:'soulharvest', icon:'✧', name:'ソウルハーベスト', tag:'ON KILL',
+   levels:[
+     '敵を倒すとソウルを集め、経験値が追加で入る。',
+     'ソウルの経験値量が増える。',
+     '覚醒：一定数集めると周囲の敵を一掃する魂の波が発生。']},
+  {id:'corpseburst', icon:'☣', name:'コープスバースト', tag:'ON KILL',
+   levels:[
+     '倒した敵の死体が毒の沼になり、敵を蝕む。',
+     '沼の範囲と毒の強さが上がる。',
+     '覚醒：死体から毒の弾を撒き散らす。']},
+  {id:'overkill', icon:'✹', name:'オーバーキル', tag:'ON KILL',
+   levels:[
+     '敵を倒すと、余ったダメージが近くの敵に飛び移る。',
+     '飛び移る距離と回数が増える。',
+     '覚醒：飛び移った先の敵も倒すとさらに連鎖する。']}
 ];
 
 const WEAPON_SPEC = {
@@ -293,7 +324,32 @@ const WEAPON_SPEC = {
   pacify:[
     {cd:10.0, radius:170, duration:1.6},
     {cd:8.0,  radius:205, duration:2.4},
-    {cd:6.4,  radius:240, duration:3.2}]
+    {cd:6.4,  radius:240, duration:3.2}],
+  /* ON KILL specs — no cooldowns, they trigger off kills */
+  reanimate:[
+    {chance:.30, count:1, duration:8,  hpMul:.6},
+    {chance:.55, count:1, duration:11, hpMul:.8},
+    {chance:1.0, count:2, duration:14, hpMul:1.0}],
+  chainblast:[
+    {radius:78,  dmg:.9, chain:0},
+    {radius:104, dmg:1.2, chain:0},
+    {radius:132, dmg:1.6, chain:1}],
+  bloodlust:[
+    {heal:2.2, speed:.8,  haste:0},
+    {heal:4.0, speed:1.4,  haste:0},
+    {heal:6.0, speed:2.0,  haste:1}],
+  soulharvest:[
+    {xp:.25, need:12},
+    {xp:.45, need:10},
+    {xp:.70, need:8}],
+  corpseburst:[
+    {radius:56, dmg:.30, life:3.0, shots:0},
+    {radius:72, dmg:.42, life:4.0, shots:0},
+    {radius:88, dmg:.55, life:5.0, shots:6}],
+  overkill:[
+    {radius:110, splash:.35, jumps:2},
+    {radius:145, splash:.55, jumps:3},
+    {radius:180, splash:.75, jumps:4}]
 };
 
 const STATS = [
@@ -537,7 +593,7 @@ function showCards(){
       : card.kind==='stat' ? 'UPGRADE' : 'RECOVERY';
     const cls = 'upgrade-card'
       + (card.kind==='weapon' ? ' weapon' : '')
-      + (card.tag==='SUMMON' ? ' summon' : card.tag==='TRAP' ? ' trap' : '')
+      + (card.tag==='SUMMON' ? ' summon' : card.tag==='TRAP' ? ' trap' : card.tag==='ON KILL' ? ' onkill' : '')
       + (lv>=2 ? ' near-awake' : '');
     const levelText = card.kind==='heal' ? 'RECOVERY'
       : card.kind==='weapon' && lv===0 ? 'NEW WEAPON'
@@ -2194,6 +2250,166 @@ function pacifyCast(f){
   f.cast = .28;
 }
 
+
+/* ================================================================== *
+ *  ON-KILL CARDS — triggered when the killer kills something         *
+ * ================================================================== */
+let ONKILL_DEPTH = 0;
+function onKillTriggers(killer, victim, dealt){
+  if(!killer || killer.level === undefined || !killer.alive) return;
+  if(ONKILL_DEPTH > 3) return;          // safety valve against proc chains
+  ONKILL_DEPTH++;
+  try {
+    onKillBody(killer, victim, dealt);
+  } finally {
+    ONKILL_DEPTH--;
+  }
+}
+function onKillBody(killer, victim, dealt){
+  const w = killer.weapons || {};
+  const s = stat(killer);
+
+  /* --- 1. reanimate: the corpse gets up and fights for us -------- */
+  if(w.reanimate && !victim.boss){
+    const spec = WEAPON_SPEC.reanimate[w.reanimate-1];
+    if(Math.random() < spec.chance){
+      for(let i=0;i<spec.count;i++){
+        if(game.enemies.length > 120) break;
+        const a = rand(0,TAU), r = i === 0 ? 0 : 26;
+        const e = makeEnemyAt(clamp(victim.x+Math.cos(a)*r, 20, WORLD_W-20),
+                              clamp(victim.y+Math.sin(a)*r, 20, WORLD_H-20),
+                              victim.type || 'grunt');
+        // stats carry over from the corpse, then get boosted
+        e.hp = e.maxHp = Math.round((victim.maxHp || e.maxHp) * spec.hpMul);
+        e.hp = Math.max(12, e.hp);
+        e.maxHp = e.hp;
+        e.speed = (victim.speed || e.speed) * 1.05;
+        e.damage = Math.round((victim.damage || e.damage) * 1.3);
+        e.charm = spec.duration;
+        e.charmMul = 1;
+        e.xp = 0;
+        e.summoned = false;
+        e.reanimated = true;
+        e.atkCd = .3;
+        particles(e.x, e.y, '#b9ffa0', 14, 1.2);
+        game.rings.push({x:e.x,y:e.y,r:8,maxR:52,life:.4,max:.4,color:'#b9ffa0',width:3});
+      }
+      game.texts.push({x:victim.x,y:victim.y-18,vy:-26,life:.9,max:.9,text:'REANIMATE',color:'#b9ffa0',size:13});
+    }
+  }
+
+  /* --- 2. chain blast: the corpse explodes ---------------------- */
+  if(w.chainblast){
+    const spec = WEAPON_SPEC.chainblast[w.chainblast-1];
+    corpseBlast(killer, victim.x, victim.y, s.damage*spec.dmg, spec.radius, spec.chain, w.chainblast);
+  }
+
+  /* --- 3. bloodlust: heal, and at high level speed up ----------- */
+  if(w.bloodlust){
+    const spec = WEAPON_SPEC.bloodlust[w.bloodlust-1];
+    killer.hp = Math.min(killer.maxHp, killer.hp + spec.heal);
+    killer.haste = Math.max(killer.haste || 0, spec.speed);
+    game.texts.push({x:killer.x,y:killer.y-30,vy:-24,life:.7,max:.7,text:'+'+spec.heal.toFixed(0),color:'#ff8fa8',size:12});
+  }
+
+  /* --- 4. soul harvest: extra XP, and at lv3 a soul wave -------- */
+  if(w.soulharvest){
+    const spec = WEAPON_SPEC.soulharvest[w.soulharvest-1];
+    grantXp(killer, Math.max(1, Math.round((victim.xp || 8) * spec.xp)));
+    killer.souls = (killer.souls || 0) + 1;
+    if(w.soulharvest >= 3 && killer.souls >= spec.need){
+      killer.souls = 0;
+      soulWave(killer, s.damage * 1.6);
+    }
+  }
+
+  /* --- 5. corpse burst: the body leaves poison behind ----------- */
+  if(w.corpseburst){
+    const spec = WEAPON_SPEC.corpseburst[w.corpseburst-1];
+    game.hazards.push({
+      kind:'poison', owner:killer, lv:w.corpseburst,
+      x:victim.x, y:victim.y, r:spec.radius,
+      dmg:spec.dmg, tick:0, tickRate:.5,
+      life:spec.life, maxLife:spec.life, seed:rand(0,100), alive:true, corpse:true
+    });
+    if(spec.shots){
+      for(let i=0;i<spec.shots;i++){
+        const a = i*TAU/spec.shots + rand(-.2,.2);
+        game.sparks.push({x:victim.x, y:victim.y,
+          vx:Math.cos(a)*220, vy:Math.sin(a)*220,
+          life:.5, max:.5, owner:killer, dmg:s.damage*spec.dmg*1.4,
+          color:'#9be36b', alive:true, r:5});
+      }
+    }
+  }
+
+  /* --- 6. overkill: leftover damage leaps to the next target ---- */
+  if(w.overkill){
+    const spec = WEAPON_SPEC.overkill[w.overkill-1];
+    /* only the portion of the blow that exceeded the victim's HP spills over,
+       capped so a huge single hit cannot nuke the whole screen */
+    const leftover = Math.min(Math.max(0, (dealt||0) - (victim.maxHp || 0)), s.damage*4);
+    const base = leftover > 0 ? leftover * spec.splash : s.damage * .75;
+    overkillLeap(killer, victim.x, victim.y, base, spec.radius, spec.jumps, w.overkill, victim);
+  }
+}
+
+/* corpseBlast is recursive when awakened, but capped so it cannot loop */
+function corpseBlast(killer, x, y, dmg, radius, chain, level, depth){
+  depth = depth || 0;
+  if(depth > 3) return;
+  game.rings.push({x,y,r:10,maxR:radius,life:.34,max:.34,color:'#ffb066',width:4});
+  particles(x,y,'#ffca8a',10,1.2);
+  const hit = [];
+  for(const e of game.enemies){
+    if(!e.alive || e.charm > 0 || e.boss) continue;
+    if(dist({x,y}, e) < radius) hit.push(e);
+  }
+  for(const e of hit){
+    const before = e.hp;
+    hurt(e, dmg, killer);
+    if(chain && !e.alive && before > 0){
+      corpseBlast(killer, e.x, e.y, dmg*.7, radius*.85, chain, level, depth+1);
+    }
+  }
+}
+
+function soulWave(killer, dmg){
+  const R = 260;
+  game.rings.push({x:killer.x,y:killer.y,r:20,maxR:R,life:.55,max:.55,color:'#c9a2ff',width:6});
+  game.rings.push({x:killer.x,y:killer.y,r:10,maxR:R*.7,life:.4,max:.4,color:'#ffffff',width:3});
+  particles(killer.x,killer.y,'#d5c4ff',26,1.6);
+  game.texts.push({x:killer.x,y:killer.y-44,vy:-20,life:1.2,max:1.2,text:'SOUL WAVE',color:'#c9a2ff',size:16});
+  for(const e of game.enemies){
+    if(!e.alive || e.charm > 0) continue;
+    if(dist(killer, e) < R){
+      hurt(e, dmg, killer);
+      e.stun = Math.max(e.stun, .5);
+    }
+  }
+  shake = Math.min(shake+3, 6);
+}
+
+function overkillLeap(killer, x, y, dmg, radius, jumps, level, skip, depth){
+  depth = depth || 0;
+  if(jumps <= 0 || depth > 4) return;
+  let best = null, bd = radius;
+  for(const e of game.enemies){
+    if(!e.alive || e === skip || e.charm > 0) continue;
+    const d = Math.hypot(e.x-x, e.y-y);
+    if(d < bd){ bd = d; best = e; }
+  }
+  if(!best) return;
+  game.beams.push({pts:[{x,y},{x:best.x,y:best.y}], life:.16, max:.16, color:'#ff9aae', width:3});
+  const before = best.hp;
+  hurt(best, dmg, killer);
+  if(level >= 3 && !best.alive && before > 0){
+    overkillLeap(killer, best.x, best.y, dmg*.7, radius*.9, jumps-1, level, best, depth+1);
+  } else if(!best.alive){
+    overkillLeap(killer, best.x, best.y, dmg*.6, radius*.9, jumps-1, level, best, depth+1);
+  }
+}
+
 /* --------------------------- boss attacks ------------------------- */
 function bossShot(e, angle, speed, dmg, r, color){
   game.bullets.push({
@@ -2334,6 +2550,10 @@ function hurt(t, amount, source){
         bossDefeated(t, killer);
       } else {
         game.kills++;
+        /* ON KILL cards fire for whoever landed the killing blow.
+           Reanimated puppets and splitter children never re-proc, otherwise
+           one kill could snowball into an unbounded chain. */
+        if(!t.reanimated && !t.splitChild) onKillTriggers(killer, t, amount);
         shake = Math.min(shake+ (t.elite?3.4:t.type==='brute'?3:1.2), 6);
         if(t.elite) game.eliteCount++;
         /* XP is per individual: only the fighter that landed the kill grows.
@@ -2353,6 +2573,7 @@ function hurt(t, amount, source){
         kid.hp = Math.round(kid.maxHp*.7);
         kid.maxHp = kid.hp;
         kid.xp = Math.round(kid.xp*.5);
+        kid.splitChild = true;
       }
       particles(t.x, t.y, '#d8a2ff', 12, 1.1);
     }

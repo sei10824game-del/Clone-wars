@@ -46,6 +46,10 @@ canvas{touch-action:none}
 .upgrade-card.summon:hover{border-color:#d8ccff;background:linear-gradient(160deg,#35304f,#252438)}
 .upgrade-card.summon .card-icon{color:#d9ccff;text-shadow:0 0 18px #b9a8ff99}
 .upgrade-card.summon .card-index{color:#b7a9e8}
+.upgrade-card.onkill{border-color:#c05a6a;background:linear-gradient(160deg,#3a2026,#28181c)}
+.upgrade-card.onkill:hover{border-color:#ff9aae;background:linear-gradient(160deg,#4a2730,#332026)}
+.upgrade-card.onkill .card-icon{color:#ff9aae;text-shadow:0 0 18px #ff5f7a99}
+.upgrade-card.onkill .card-index{color:#e88b9c}
 .upgrade-card.trap{border-color:#c08352;background:linear-gradient(160deg,#372b20,#28211a)}
 .upgrade-card.trap:hover{border-color:#ffc287;background:linear-gradient(160deg,#463526,#302619)}
 .upgrade-card.trap .card-icon{color:#ffc98f;text-shadow:0 0 18px #ff9d5c99}
