@@ -1374,10 +1374,13 @@ function resolveSolid(ent, prevX, prevY){
     ];
     for(const seg of pads){
       if(seg.gap){
-        // skip the doorway span entirely
+        /* The body only passes if it genuinely fits through the opening:
+           its centre must be at least r inside the jambs. Otherwise the
+           wall still pushes it out, which used to let bodies smeared across
+           the door frame slip through the stone on either side. */
         const gc = seg.horiz ? seg.gap.x : seg.gap.y;
-        const gw = seg.gap.w;
-        if(seg.horiz ? Math.abs(ent.x - gc) < gw/2 : Math.abs(ent.y - gc) < gw/2) continue;
+        const half = seg.gap.w/2 - r;
+        if(half > 0 && (seg.horiz ? Math.abs(ent.x - gc) < half : Math.abs(ent.y - gc) < half)) continue;
       }
       if(!boxCircleOverlap(seg, ent, r)) continue;
       pushCircleOutOfBox(ent, seg, r);
@@ -1406,14 +1409,48 @@ function buildingDoor(b){
 function blockedAhead(ent, tx, ty, r){
   const d = Math.hypot(tx-ent.x, ty-ent.y);
   if(d < 1) return false;
-  const steps = Math.min(6, Math.ceil(d/40));
+  const r0 = r || ent.r || 14;
+  /* March the WHOLE line, not just the first few hundred pixels. Capping the
+     sample count at six made a thin wall (22px) invisible to anything more
+     than ~240px away, so enemies and summons charged straight through it and
+     only noticed once they were already grinding on it. */
   const nx = (tx-ent.x)/d, ny = (ty-ent.y)/d;
+  /* Coarse march first: one probe every ~70px is enough to notice a wall
+     mass, and it keeps the horde cheap. Where a coarse sample does hit, the
+     gap around it is re-marched finely so a thin 22px wall cannot slip
+     between two probes. */
+  /* Sampling alone can never be exact: a sample every 70px steps clean over a
+     26px crate. So the coarse pass is only a fast reject — it also checks the
+     probe radius against a slightly fatter radius, and any sample that comes
+     anywhere near geometry triggers a fine sweep of its whole segment. */
+  const coarse = 70;
+  const fine = 12;
+  const steps = Math.ceil(d/coarse);
   for(let i=1;i<=steps;i++){
-    const px = ent.x + nx*(d/steps)*i;
-    const py = ent.y + ny*(d/steps)*i;
-    if(solidAt(px, py, r)) return true;
+    const t = Math.min(d, i*coarse);
+    const px = ent.x + nx*t, py = ent.y + ny*t;
+    if(solidAt(px, py, r0)){
+      const from = Math.max(0, t-coarse);
+      const sub = Math.ceil((t-from)/fine);
+      for(let k=1;k<=sub;k++){
+        const tt = from + (t-from)*k/sub;
+        if(solidAt(ent.x + nx*tt, ent.y + ny*tt, r0)) return true;
+      }
+      return true;
+    }
+    /* moving obstacle in the segment? sweep it finely as well */
+    if(solidAt(px, py, r0 + coarse*0.75)){
+      const from = Math.max(0, t-coarse);
+      const sub = Math.ceil((t-from)/fine);
+      for(let k=1;k<=sub;k++){
+        const tt = from + (t-from)*k/sub;
+        if(solidAt(ent.x + nx*tt, ent.y + ny*tt, r0)) return true;
+      }
+    }
   }
-  return false;
+  /* a raycast alone can slip between two touching props: also check the
+     actual target cell, which is where the entity is trying to end up */
+  return solidAt(tx, ty, Math.max(8, r0*0.6));
 }
 
 function solidAt(x, y, r){
@@ -1443,8 +1480,11 @@ function solidAt(x, y, r){
   for(const b of worldEnt.buildings){
     if(x < b.x-r || x > b.x+b.w+r || y < b.y-r || y > b.y+b.h+r) continue;
     const door = buildingDoor(b);
-    const nearDoorX = Math.abs(x - door.x) < door.w/2 + r*0.2;
-    const nearDoorY = Math.abs(y - door.y) < door.w/2 + r*0.2;
+    /* a probe counts as "in the doorway" only when a body of this radius
+       actually fits between the jambs */
+    const halfGap = Math.max(0, door.w/2 - r);
+    const nearDoorX = Math.abs(x - door.x) < halfGap;
+    const nearDoorY = Math.abs(y - door.y) < halfGap;
     const slabs = [
       {x:b.x, y:b.y, w:b.w, h:T, gap: door.side==='top' ? nearDoorX : false},
       {x:b.x, y:b.y+b.h-T, w:b.w, h:T, gap: door.side==='bottom' ? nearDoorX : false},
@@ -1463,28 +1503,69 @@ function solidAt(x, y, r){
 
 /* Small navigation grid. Rebuilt lazily and reused across entities, this is
    what lets the horde walk through doorways instead of into walls. */
-const NAV = { cell: 110, cols:0, rows:0, blocked:null, builtFor: -1 };
+/* A 110px cell is wider than a doorway, so a 110px gap could fall between
+   cells and A* would decide the room had no way out. 50px keeps one or two
+   cells inside every opening while staying cheap to rebuild. */
+const NAV = { cell: 50, cols:0, rows:0, blocked:null, builtFor: -1 };
+
+function insideAnyBuilding(x, y){
+  for(const b of worldEnt.buildings){
+    const T = 26;
+    if(x > b.x+T && x < b.x+b.w-T && y > b.y+T && y < b.y+b.h-T) return true;
+  }
+  return false;
+}
 
 function navInit(){
   NAV.cols = Math.ceil(WORLD_W / NAV.cell);
   NAV.rows = Math.ceil(WORLD_H / NAV.cell);
-  NAV.blocked = new Uint8Array(NAV.cols * NAV.rows);
-  for(let cy=0; cy<NAV.rows; cy++){
-    for(let cx=0; cx<NAV.cols; cx++){
-      const x = (cx+.5)*NAV.cell, y = (cy+.5)*NAV.cell;
-      // a cell is passable if its centre and a small ring around it are clear
-      let blocked = solidAt(x, y, 24) ? 1 : 0;
-      if(!blocked){
-        let hits = 0;
-        for(let k=0;k<4;k++){
-          const a = k*Math.PI/2;
-          if(solidAt(x+Math.cos(a)*30, y+Math.sin(a)*30, 20)) hits++;
-        }
-        if(hits >= 3) blocked = 1;   // virtually sealed
-      }
-      NAV.blocked[cy*NAV.cols + cx] = blocked;
+  const cols = NAV.cols, rows = NAV.rows, cell = NAV.cell;
+  const blocked = new Uint8Array(cols * rows);
+  /* Rasterise every solid box straight into the grid instead of probing each
+     cell through the spatial hash. A 180x180 grid with four solidAt() calls
+     per cell took ~800ms, i.e. a visible freeze the first time an enemy
+     needed a path; painting rectangles is O(area) and finishes in a few ms. */
+  const paint = (bx, by, bw, bh) => {
+    const cx0 = clamp(Math.floor(bx / cell), 0, cols-1);
+    const cy0 = clamp(Math.floor(by / cell), 0, rows-1);
+    const cx1 = clamp(Math.floor((bx+bw) / cell), 0, cols-1);
+    const cy1 = clamp(Math.floor((by+bh) / cell), 0, rows-1);
+    for(let cy=cy0; cy<=cy1; cy++){
+      const row = cy*cols;
+      for(let cx=cx0; cx<=cx1; cx++) blocked[row+cx] = 1;
+    }
+  };
+  for(const o of worldEnt.obstacles) paint(o.x, o.y, o.w, o.h);
+  /* buildings: four wall slabs, each with the doorway span left open */
+  const T = 22, M = 6;               // inflate walls slightly: paths hug corners
+  for(const b of worldEnt.buildings){
+    const door = buildingDoor(b);
+    const halfGap = door.w/2;
+    if(door.side === 'top' || door.side === 'bottom'){
+      const y = door.side === 'top' ? b.y : b.y + b.h - T;
+      paint(b.x, y - (door.side==='top'?M:0), b.w, T + M);
+      // re-open the doorway cells
+      const cx0 = Math.floor((door.x-halfGap)/cell), cx1 = Math.floor((door.x+halfGap)/cell);
+      const cy0 = clamp(Math.floor(y/cell),0,rows-1), cy1 = clamp(Math.floor((y+T)/cell),0,rows-1);
+      for(let cy=cy0; cy<=cy1; cy++) for(let cx=Math.max(0,cx0); cx<=Math.min(cols-1,cx1); cx++) blocked[cy*cols+cx] = 0;
+    } else {
+      const x = door.side === 'left' ? b.x : b.x + b.w - T;
+      paint(x - (door.side==='left'?M:0), b.y, T + M, b.h);
+      const cy0 = Math.floor((door.y-halfGap)/cell), cy1 = Math.floor((door.y+halfGap)/cell);
+      const cx0 = clamp(Math.floor(x/cell),0,cols-1), cx1 = clamp(Math.floor((x+T)/cell),0,cols-1);
+      for(let cy=Math.max(0,cy0); cy<=Math.min(rows-1,cy1); cy++) for(let cx=cx0; cx<=cx1; cx++) blocked[cy*cols+cx] = 0;
+      // the opposite wall (the one without the door) is solid end to end
+      paint(door.side === 'left' ? b.x + b.w - T : b.x, b.y, T, b.h);
+    }
+    if(door.side === 'left' || door.side === 'right'){
+      paint(b.x, b.y, b.w, T);
+      paint(b.x, b.y + b.h - T, b.w, T);
+    } else {
+      paint(b.x, b.y, T, b.h);
+      paint(b.x + b.w - T, b.y, T, b.h);
     }
   }
+  NAV.blocked = blocked;
   NAV.builtFor = worldEnt.obstacles.length + worldEnt.buildings.length;
 }
 
@@ -1504,7 +1585,19 @@ function findPath(sx, sy, tx, ty, maxNodes){
   maxNodes = maxNodes || 2600;
   const start = navIndex(sx, sy), goal = navIndex(tx, ty);
   if(start === goal) return [{x:tx, y:ty}];
-  const cols = NAV.cols, rows = NAV.rows;
+  /* An entity can legitimately stand in a cell flagged blocked (a summon
+     spawned inside a building, a body nudged into a doorway). Treat the two
+     endpoints as walkable so a route is still produced instead of the AI
+     falling back to "charge the wall". */
+  const startBlocked = NAV.blocked[start], goalBlocked = NAV.blocked[goal];
+  NAV.blocked[start] = 0;
+  NAV.blocked[goal] = 0;
+  const nCols = NAV.cols, nRows = NAV.rows;
+  try { return findPathRaw(sx, sy, tx, ty, maxNodes, start, goal, nCols, nRows); }
+  finally { NAV.blocked[start] = startBlocked; NAV.blocked[goal] = goalBlocked; }
+}
+function findPathRaw(sx, sy, tx, ty, maxNodes, start, goal, nCols, nRows){
+  const cols = nCols, rows = nRows;
   const open = [start];
   const came = new Int32Array(cols*rows).fill(-1);
   const gScore = new Float32Array(cols*rows).fill(Infinity);
@@ -1569,9 +1662,18 @@ function steerAround(ent, tx, ty, dt, opts){
   const speed = opts.speed || 60;
   ent.navT = (ent.navT || 0) - dt;
 
+  /* A one-waypoint path is still a route: the old "length < 2" test threw it
+     away and sent the unit straight at the wall again, which is exactly the
+     "charges through the wall instead of changing route" behaviour. Only
+     drop the path when the line is genuinely clear. */
   const straight = !blockedAhead(ent, tx, ty, ent.r || 14);
-  if(straight && (!ent.path || ent.path.length < 2)){
+  if(straight){
     ent.path = null;
+    /* Drop the waypoint cursor too. Leaving a stale pathIdx made the next
+       repath resume at an old waypoint BEHIND the unit, which is what made
+       units pace back and forth along a wall instead of rounding it. */
+    ent.pathIdx = 0;
+    ent.pathGoal = null;
     return {x:tx, y:ty, direct:true};
   }
 
@@ -1579,17 +1681,52 @@ function steerAround(ent, tx, ty, dt, opts){
   if(ent.navT <= 0 || targetMoved || !ent.path || !ent.path.length){
     ent.navT = repath * (0.8 + Math.random()*0.4);
     ent.pathGoal = {x:tx, y:ty};
+    const old = ent.path;
     ent.path = findPath(ent.x, ent.y, tx, ty);
     ent.pathIdx = 0;
+    /* A fresh path starts at our current cell, but the old path may already
+       have carried us several waypoints along. If the new route shares the
+       direction we were heading, resume from the nearest matching waypoint
+       instead of marching back to the start each repath. */
+    if(ent.path && ent.path.length && old && old.length){
+      const wasIdx = ent.pathIdx || 0;
+      let best = 0, bestD = Infinity;
+      for(let i=0;i<ent.path.length;i++){
+        const wpOld = old[Math.min(wasIdx, old.length-1)];
+        const dd = Math.hypot(ent.path[i].x-wpOld.x, ent.path[i].y-wpOld.y);
+        if(dd < bestD){ bestD = dd; best = i; }
+      }
+      if(bestD < 90) ent.pathIdx = best;
+    }
   }
   if(!ent.path || !ent.path.length) return {x:tx, y:ty, direct:false};
 
-  let wp = ent.path[Math.min(ent.pathIdx||0, ent.path.length-1)];
-  // advance through waypoints we have already reached
-  while(wp && Math.hypot(wp.x-ent.x, wp.y-ent.y) < 34 && (ent.pathIdx||0) < ent.path.length-1){
-    ent.pathIdx = (ent.pathIdx||0) + 1;
-    wp = ent.path[ent.pathIdx];
+  /* Follow the path strictly in order. Only advance past a waypoint we have
+     actually reached (near it, or already beyond it along the local segment),
+     never by guessing from the goal direction — a curving route around a
+     building would otherwise skip half its own corners. */
+  let idx = Math.min(ent.pathIdx||0, ent.path.length-1);
+  let wp = ent.path[idx];
+  for(let guard=0; guard<ent.path.length; guard++){
+    if(!wp || idx >= ent.path.length-1) break;
+    const nxt = ent.path[idx+1];
+    const near = Math.hypot(wp.x-ent.x, wp.y-ent.y) < 26;
+    /* also treat it as reached if we have passed the perpendicular through it */
+    let passed = false;
+    if(nxt){
+      const sx = nxt.x - wp.x, sy = nxt.y - wp.y;
+      const len2 = sx*sx + sy*sy;
+      if(len2 > 1){
+        const t = ((ent.x-wp.x)*sx + (ent.y-wp.y)*sy) / len2;
+        passed = t > 0.25;
+      }
+    }
+    if(!near && !passed) break;
+    idx++;
+    wp = ent.path[idx];
   }
+  ent.pathIdx = Math.min(idx, ent.path.length-1);
+  if(!wp) return {x:tx, y:ty, direct:true};
   return {x:wp.x, y:wp.y, direct:false};
 }
 
@@ -3325,7 +3462,7 @@ function skeletonTick(dt){
       if(d > 20){
         const sp = 110;
         let ax = t.x, ay = t.y;
-        if(blockedAhead(sk, t.x, t.y, 16)){
+        if(blockedAhead(sk, t.x, t.y, (sk.r||12) + 4)){
           const steer = steerAround(sk, t.x, t.y, dt, {repath:1.2});
           ax = steer.x; ay = steer.y;
         } else sk.path = null;
@@ -3990,7 +4127,7 @@ function cloneMove(c,dt){
     c.y = clamp(c.y + (steer.y-c.y)/gl*sp*dt, 17, WORLD_H-17);
     c.r = 15;
     resolveSolid(c);
-    ensureMoving(c, beforeX, beforeY, dt);
+    ensureMoving(c, beforeX, beforeY, dt, sp);
     c.moving = Math.hypot(c.x-beforeX, c.y-beforeY) > .05;
     c.legPhase += dt*(c.moving?9:0);
     if(c.moving) c.angle = Math.atan2(steer.y-c.y, steer.x-c.x);
@@ -4082,11 +4219,21 @@ function ensureMoving(ent, beforeX, beforeY, dt, speed, vx, vy){
   if(path && path.length){
     ent.path = path; ent.pathIdx = 0; ent.navT = 1.0;
   } else {
-    // nothing found: nudge sideways so we do not sit in the same spot
-    const a = rand(0, TAU);
-    ent.x = clamp(ent.x + Math.cos(a)*34, 17, WORLD_W-17);
-    ent.y = clamp(ent.y + Math.sin(a)*34, 17, WORLD_H-17);
-    resolveSolid(ent);
+    /* Nothing found. Nudging in a random direction used to teleport the body
+       34px, which could land it inside a wall (resolveSolid then shoves it
+       back out on the far side, so the unit "pops through"). Try a few short
+       sideways steps and only take one that is actually clear. */
+    const base = Math.atan2((ent.navGoal && ent.navGoal.y || 0) - ent.y,
+                            (ent.navGoal && ent.navGoal.x || 0) - ent.x);
+    for(let attempt=0; attempt<6; attempt++){
+      const a = base + (attempt % 2 ? 1 : -1) * (Math.PI/2) + rand(-.3,.3);
+      const nx = clamp(ent.x + Math.cos(a)*18, 17, WORLD_W-17);
+      const ny = clamp(ent.y + Math.sin(a)*18, 17, WORLD_H-17);
+      if(solidAt(nx, ny, (ent.r||14) + 2)) continue;
+      ent.x = nx; ent.y = ny;
+      resolveSolid(ent);
+      break;
+    }
   }
   return true;
 }
@@ -7497,7 +7644,8 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     WORLD, cam, worldEnt, worldDepth, depthLabel, buildWorld, resolveSolid, makeEnemyAt,
     collectDrop, spawnBuildingLoot, spawnBuildingGuards, beginCooldown, beginRound, W, H,
     sprite, SPR, drawFighter, drawEnemy, allyList, allyTargetsOf:()=>allyList(),
-    spawnBuildingCages, freeCage, spawnBoss, nearestSquadMember, trapVictims
+    spawnBuildingCages, freeCage, spawnBoss, nearestSquadMember, trapVictims,
+    solidAt, blockedAhead, findPath, navInit, buildingDoor, steerAround
   };
 }
 })();
