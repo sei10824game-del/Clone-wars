@@ -260,7 +260,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
 @media (pointer:coarse){body.immersive .hud-right{margin-top:30px}}
 
 </style>
-  <meta name="build-version" content="2.2.1" />
+  <meta name="build-version" content="2.3.0" />
 </head>
 <body>
   <div class="app">
@@ -301,7 +301,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
             </div>
             <div id="announcement" class="announcement"></div>
           </div>
-          <div class="game-bottomline"><span><i></i> SYSTEM STATUS: <b>ONLINE</b></span><span>自動攻撃 ON <span class="separator">/</span> 移動して生き延びよう</span><span>BUILD <b id="buildTag">2.2.1</b></span></div>
+          <div class="game-bottomline"><span><i></i> SYSTEM STATUS: <b>ONLINE</b></span><span>自動攻撃 ON <span class="separator">/</span> 移動して生き延びよう</span><span>BUILD <b id="buildTag">2.3.0</b></span></div>
         </div>
         <div class="under-game"><div><span class="key-icon">⌘</span><span><b>HOW TO PLAY</b><small>操作方法</small></span></div><p class="kb-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> または <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> で移動 <span>／</span> <kbd>SPACE</kbd> でダッシュ <span>／</span> <kbd>P</kbd> で一時停止 <span>／</span> 武器はレベルアップで自動攻撃</p><p class="touch-only">ゲーム画面を指でドラッグして移動 <span>／</span> 右下の ϟ でダッシュ <span>／</span> 武器は自動攻撃 <span>／</span> 倒れたら近くのクローンに乗り移る <span>／</span> 左上の ⛶ で全画面</p></div>
       </section>
@@ -342,7 +342,7 @@ const TAU = Math.PI*2;
 /* The arena used to be exactly one screen. It is now a large scrolling world
    with the camera locked on the player, so gameplay bounds are WORLD_* while
    W/H remain the viewport (and the authoring size for the baked backdrop). */
-const WORLD = { w: 9000, h: 9000 };
+const WORLD = { w: 13000, h: 13000 };
 const WORLD_W = WORLD.w, WORLD_H = WORLD.h;
 /* persistent camera + world state (survives newGame so the map is stable) */
 const cam = { x: 0, y: 0, shakeX: 0, shakeY: 0 };
@@ -991,9 +991,57 @@ const HEALS = [
 
 /* ------------------------------- state ---------------------------- */
 let game, last = 0, touch = {active:false,x:0,y:0,dx:0,dy:0}, announceTimer = 0, shake = 0;
-let qTable = {};
-try { qTable = JSON.parse(localStorage.getItem('clone-survivors-allied-q-v2')||'{}'); if(!qTable || typeof qTable!=='object' || Array.isArray(qTable)) qTable = {}; } catch(e) { qTable = {}; }
-function saveBrain(){ try{ localStorage.setItem('clone-survivors-allied-q-v2', JSON.stringify(qTable)); }catch(e){} }
+/* ---------------- clone reinforcement learning ----------------
+   The squad is driven by a tabular Q learner that survives reloads, so the
+   clones that die a lot stop repeating the behaviour that killed them.
+
+   ACTION SET (9):
+     0 approach        1 back off         2 strafe CW
+     3 strafe CCW      4 diagonal retreat 5 dash toward the threat
+     6 dash left       7 dash right       8 hold ground / fire
+   Dashing actions set the same i-frames the player's dash gets, so a learned
+   dodge is a *real* dodge: it can carry a clone through a bullet that was
+   already on top of it.
+
+   Two brains are kept apart on purpose:
+     'clone' — assault/positioning, used when no bullet is inbound
+     'dodge' — a dedicated evasive policy consulted while a shot is closing,
+               so learning to dodge never has to compete with learning to aim.
+   That split is what makes bullet avoidance trainable at all: mixing both in
+   one 15-action table meant the dodge rows were never sampled often enough. */
+const BRAIN_VERSION = 4;
+/* The combat/positioning brain keeps the five actions it has always had (and
+   has therefore already learned). Dodging lives in its own table below: mixing
+   the two action spaces meant every dodge action also had to be a good combat
+   action, and diluting five learned moves into nine half-learned ones is why an
+   early version of this fought worse than before. */
+const ACTION_COUNT = 5;
+/* The evasion policy is deliberately its own table with its own actions.
+   Sharing one action space meant an untrained dodge row fell back to action 0
+   ("approach"), so a clone under fire charged *harder* than one that was left
+   alone — the exact failure the dodging was supposed to fix.
+   Dodge actions: 0 sidestep left, 1 sidestep right, 2 break away,
+                 3 dash through, 4 keep position and shoot. */
+const DODGE_ACTIONS = 5;
+const DODGE_EPS = .06;
+let qTable = {}, dodgeTable = {};
+
+function loadBrain(key, fallback){
+  try {
+    const raw = localStorage.getItem(key);
+    if(!raw) return fallback;
+    const o = JSON.parse(raw);
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : fallback;
+  } catch(e) { return fallback; }
+}
+qTable     = loadBrain('clone-survivors-q-v'+BRAIN_VERSION, {});
+dodgeTable = loadBrain('clone-survivors-dodge-v'+BRAIN_VERSION, {});
+function saveBrain(){
+  try{
+    localStorage.setItem('clone-survivors-q-v'+BRAIN_VERSION, JSON.stringify(qTable));
+    localStorage.setItem('clone-survivors-dodge-v'+BRAIN_VERSION, JSON.stringify(dodgeTable));
+  }catch(e){}
+}
 
 function fighter(x,y,clone=false){
   return {
@@ -1298,9 +1346,15 @@ function updateSquadActivity(){
     else looting++;
   }
   const bits = [];
+  /* squad size is the round number, so show progress toward it */
+  const want = Math.min(SQUAD_CAP, Math.max(1, game.stage));
+  bits.push('分隊 '+squad.length+'/'+want);
   if(fighting) bits.push('戦闘 '+fighting);
   if(scouting) bits.push('探索 '+scouting);
   if(looting) bits.push('回収 '+looting);
+  /* how many clones are currently evading rather than engaging */
+  const evading = squad.filter(c=>c.dodgePending || (c.dodgeState && c.dodgeAction !== undefined && c.dodgeAction !== 4)).length;
+  if(evading) bits.push('回避 '+evading);
   /* how many rooms the squad (not just you) has opened up */
   const opened = worldEnt.buildings.filter(b=>b.entered).length;
   if(opened) bits.push('施設 '+opened);
@@ -1357,6 +1411,7 @@ function start(){
   game.state = 'playing';
   for(const id of ['startOverlay','endOverlay','pauseOverlay','rewardOverlay']) $(id).classList.add('hidden');
   $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
+  reinforceSquad();                 // round 1 starts with one clone on the field
   notice('STAGE 01','生き残れ。');
 }
 function showCards(){
@@ -1520,11 +1575,8 @@ function stageClear(){
   const depth = worldDepth(game.player.x, game.player.y);
   const bonus = Math.round(8 + game.stage*2 + depth*26);
   grantXp(game.player, bonus);   // only the surviving player banks the clear
-  const angle = rand(0,TAU);
-  const clone = fighter(clamp(game.player.x+Math.cos(angle)*300,60,WORLD_W-60), clamp(game.player.y+Math.sin(angle)*300,60,WORLD_H-60), true);
-  game.clones.push(clone);
-  for(let i=0;i<18;i++) particles(clone.x, clone.y, '#ffca86', 2);
-  game.rings.push({x:clone.x,y:clone.y,r:10,maxR:120,life:.7,max:.7,color:'#ffcf8a',width:3});
+  /* Squad size is owned by reinforceSquad() at the top of the next round:
+     exactly `stage` clones, no more and no fewer. */
   /* The stage number advances when the next round actually starts (after the
      cooldown) so the HUD doesn't show a stage that hasn't begun. */
   game.pendingStage = game.stage + 1;
@@ -1598,12 +1650,16 @@ function buildWorld(){
   /* Place one building per distance band so the risk/reward ramp is real:
      a shack near the start, a vault at the edge of the map. Each band gets a
      couple of candidates scattered around its ring. */
+  /* One ring per distance band, stretching all the way to the new edge. */
   const BANDS = [
     {rad:[520, 900],    rooms:0},
     {rad:[1250, 1750],  rooms:0},
     {rad:[2000, 2600],  rooms:1},
     {rad:[2800, 3400],  rooms:2},
-    {rad:[3600, 4100],  rooms:3}
+    {rad:[3600, 4100],  rooms:3},
+    {rad:[4400, 4900],  rooms:1},
+    {rad:[5100, 5600],  rooms:2},
+    {rad:[5800, 6300],  rooms:3}
   ];
   for(let band=0; band<BANDS.length; band++){
     const def = BANDS[band];
@@ -1641,7 +1697,11 @@ function buildWorld(){
   // ---- solid obstacles: rocks, walls, crates (block movement) ----
   const shapes = ['rock','wall','crate'];
   let placed = 0, tries = 0;
-  while(placed < 900 && tries < 40000){
+  /* Prop count follows the area: 900 props over 9000px² read as a dense
+     field, so the bigger map gets the same density rather than turning into
+     empty space. (13000/9000)² ≈ 2.09 */
+  const PROP_TARGET = Math.round(900 * (WORLD_W*WORLD_H)/(9000*9000));
+  while(placed < PROP_TARGET && tries < 90000){
     tries++;
     let x = rng()*WORLD_W, y = rng()*WORLD_H;
     x = clamp(x, 150, WORLD_W-150); y = clamp(y, 150, WORLD_H-150);
@@ -2428,7 +2488,24 @@ const ENEMY_TYPES = {
   splitter: {hp:56,    r:16, speed:52, dmg:10, xp:24, from:7,  weight:0.6, split:1},
   healer:   {hp:60,    r:14, speed:44, dmg:6,  xp:34, from:8,  weight:0.45, aura:'heal'},
   stalker:  {hp:44,    r:12, speed:80, dmg:13, xp:30, from:9,  weight:0.5, blink:1},
-  colossus: {hp:150,   r:24, speed:32, dmg:20, xp:55, from:11, weight:0.35}
+  colossus: {hp:150,   r:24, speed:32, dmg:20, xp:55, from:11, weight:0.35},
+  /* --- second wave of species --- */
+  /* lobs a slow arcing shell that bursts into shrapnel where it lands */
+  mortar:   {hp:52,    r:16, speed:34, dmg:12, xp:36, from:5,  weight:0.45, ranged:1, keep:300, shell:1},
+  /* armoured front, nearly immune from the front, soft from behind */
+  bulwark:  {hp:130,   r:19, speed:30, dmg:14, xp:48, from:8,  weight:0.4, aura:'shield'},
+  /* fast zig-zag charger that telegraphs a straight-line rush */
+  charger:  {hp:38,    r:13, speed:70, dmg:16, xp:32, from:6,  weight:0.55, charge:1},
+  /* hovers, fires a 3-round burst spread */
+  hexer:    {hp:46,    r:14, speed:50, dmg:8,  xp:34, from:10, weight:0.5, ranged:1, keep:240, burst:1},
+  /* splits into three runners instead of two */
+  breeder:  {hp:64,    r:17, speed:45, dmg:11, xp:38, from:12, weight:0.4, split:1, splitN:3},
+  /* purely defensive: lays slowing puddles */
+  trapper:  {hp:58,    r:15, speed:40, dmg:7,  xp:40, from:13, weight:0.35, ranged:1, keep:180, goo:1},
+  /* shielded orbiter that circles before committing */
+  orbiter:  {hp:66,    r:15, speed:66, dmg:12, xp:42, from:14, weight:0.4, orbit:1},
+  /* big late-game elite-breeder; spawns trash on death */
+  tyrant:   {hp:220,   r:26, speed:28, dmg:24, xp:80, from:16, weight:0.3}
 };
 
 function makeEnemyAt(x, y, forcedType){
@@ -2463,6 +2540,9 @@ function makeEnemyAt(x, y, forcedType){
     swing:0, atkCd:0, face:0, lunge:0,
     ranged:!!def.ranged, keep:def.keep||0, explode:!!def.explode,
     auraType:def.aura||null, split:!!def.split, blinkCd:def.blink?rand(2,4):0,
+    splitN:def.splitN||2,
+    shell:!!def.shell, burst:!!def.burst, goo:!!def.goo, orbit:!!def.orbit,
+    charger:!!def.charge,
     fear:0, charm:0, cursed:0, pacified:0
   };
   game.enemies.push(e);
@@ -2804,6 +2884,17 @@ function updateHazards(dt){
         game.rings.push({x:h.x,y:h.y,r:12,maxR:h.r,life:.4,max:.4,color:'#ffb066',width:5});
         particles(h.x,h.y,'#ffca8a',16,1.4);
         shake = Math.min(shake+2.0, 5);
+      }
+      continue;
+    }
+    /* trapper slick: an enemy hazard, so it slows the squad, not the horde */
+    if(h.kind === 'goo'){
+      for(const f of allyList()){
+        if(!f.alive || f.invisible > 0) continue;
+        if(dist(h,f) < h.r){
+          f.slowT = Math.max(f.slowT||0, .5);
+          f.slowMul = Math.min(f.slowMul||1, .5);
+        }
       }
       continue;
     }
@@ -3816,6 +3907,31 @@ function shellTick(dt){
   };
   for(const sh of game.shells){
     if(!sh.alive) continue;
+    /* ------ mortar lob: a hostile shell that arcs to a marked spot ------ */
+    if(sh.hostile){
+      sh.t += dt;
+      const k = Math.min(1, sh.t/sh.dur);
+      sh.x = sh.sx + (sh.tx-sh.sx)*k;
+      sh.y = sh.sy + (sh.ty-sh.sy)*k;
+      sh.h = Math.sin(k*Math.PI)*90;              // visual arc height
+      if(k >= 1){
+        sh.alive = false;
+        /* the squad has ~0.45s of telegraph before this lands */
+        const R = 78;
+        for(const f of allyList()){
+          if(!f.alive || f.invisible > 0) continue;
+          if(f.level !== undefined && f.invuln > 0) continue;
+          if(dist(sh, f) < R){
+            hurt(f, sh.dmg, sh.owner);
+            if(f.level !== undefined) f.invuln = .3;
+          }
+        }
+        game.rings.push({x:sh.x, y:sh.y, r:10, maxR:R, life:.42, max:.42, color:'#ffb066', width:5});
+        particles(sh.x, sh.y, '#ffca8a', 16, 1.4);
+        shake = Math.min(shake+2.4, 6);
+      }
+      continue;
+    }
     sh.x += Math.cos(sh.ang)*sh.speed*dt;
     sh.y += Math.sin(sh.ang)*sh.speed*dt;
     sh.life -= dt;
@@ -4296,6 +4412,15 @@ function hurt(t, amount, source){
     game.rings.push({x:t.x,y:t.y,r:t.r*1.4,maxR:t.r*2.6,life:.22,max:.22,color:'#b6ff9e',width:2});
     if(amount <= 0) return;
   }
+  /* bulwark: its armoured front shrugs off shots, so the squad has to flank */
+  if(t.type === 'bulwark' && !t.boss && t.level === undefined && source){
+    const atk = source.owner || source;
+    if(atk && atk.x !== undefined){
+      const facing = Math.atan2(atk.y-t.y, atk.x-t.x);
+      let diff = Math.abs(((facing - (t.face||0)) + Math.PI*3) % (Math.PI*2) - Math.PI);
+      if(diff < Math.PI/2.3) amount *= .35;
+    }
+  }
   /* shielder aura: nearby enemies take less damage */
   if(t.hp !== undefined && t.level === undefined && t.owner === undefined &&
      !t.boss && !t.charm && game.enemies){
@@ -4357,7 +4482,7 @@ function hurt(t, amount, source){
     leechOwner.hp = Math.min(leechOwner.maxHp, leechOwner.hp + amount*leechOwner.leech);
   }
   damageText(t.x, t.y-(t.r||16), amount, isEnemy?'#ffe8a8':t===game.player?'#ff8f8f':'#ffc79a');
-  if(t.clone) t.reward -= amount*.035;
+  if(t.clone){ t.reward -= amount*.10 + .35; t.dodgeReward -= 1.4; }  // getting hit is always a mistake
   if(source && source.clone) source.reward += amount*.04;
   particles(t.x, t.y, t.clone?'#ffc27c':t===game.player?'#c8f681':'#ffb0a0', 3, .7);
   /* rebirth: a lethal blow is survived once, at the card's HP fraction */
@@ -4438,8 +4563,20 @@ function hurt(t, amount, source){
         }
       }
     }
+    /* tyrant: the elite bursts into a pack of its own brood */
+    if(t.type === 'tyrant' && !t.charm){
+      for(let i=0;i<4;i++){
+        if(game.enemies.length > 110) break;
+        const a = i*TAU/4 + rand(0,.6);
+        const kid = makeEnemyAt(clamp(t.x+Math.cos(a)*30, 20, WORLD_W-20),
+                                clamp(t.y+Math.sin(a)*30, 20, WORLD_H-20), 'grunt');
+        kid.splitChild = true;
+        kid.hp = Math.round(kid.maxHp*.8); kid.maxHp = kid.hp;
+      }
+      game.rings.push({x:t.x,y:t.y,r:14,maxR:130,life:.5,max:.5,color:'#ff8f8f',width:4});
+    }
     if(t.split && !t.boss && !t.charm){
-      for(let i=0;i<2;i++){
+      for(let i=0;i<(t.splitN||2);i++){
         if(game.enemies.length > 110) break;
         const a = rand(0,TAU);
         const kid = makeEnemyAt(clamp(t.x+Math.cos(a)*22, 20, WORLD_W-20),
@@ -4459,9 +4596,16 @@ function hurt(t, amount, source){
       particles(t.x,t.y,'#ffcf8a',18,1.4);
     }
     if(t.clone){
+      /* The terminal transition: dying is the single most informative event
+         the learner ever sees, so it is written against the state that was
+         actually in force (dodge table while a shot was inbound). */
+      if(t.dodgeState !== null && t.dodgeAction !== undefined){
+        const dv = dodgeValues(t.dodgeState);
+        dv[t.dodgeAction] += .2*(-14 - dv[t.dodgeAction]);
+      }
       if(t.state !== null){
         const q = qValues(t.state);
-        q[t.action] += .18*(-5+t.reward-q[t.action]);
+        q[t.action] += .18*(-12 + t.reward - q[t.action]);
       }
       saveBrain();
     }
@@ -4541,8 +4685,114 @@ function endGame(){
 
 /* -------------------------------- AI ------------------------------ */
 function qValues(state){
-  if(!Array.isArray(qTable[state]) || qTable[state].length !== 5) qTable[state] = [0,0,0,0,0];
+  if(!Array.isArray(qTable[state]) || qTable[state].length !== ACTION_COUNT)
+    qTable[state] = new Array(ACTION_COUNT).fill(0);
   return qTable[state];
+}
+function dodgeValues(state){
+  if(!Array.isArray(dodgeTable[state]) || dodgeTable[state].length !== DODGE_ACTIONS)
+    dodgeTable[state] = new Array(DODGE_ACTIONS).fill(0);
+  return dodgeTable[state];
+}
+
+/* ---------------------------------------------------------------------
+   THREAT SENSING
+   A clone that cannot see a bullet is not going to learn to dodge one, so
+   every decision frame starts by asking "what is about to hit me?".
+   threatScan() returns the single most urgent incoming shot together with
+   the sign that tells the clone which way to sidestep, and worstTTI is the
+   time (seconds) before it arrives.
+   --------------------------------------------------------------------- */
+/* Look-ahead has to cover the whole flight of a normal shot: a spitter round
+   travels at 250px/s, so a shot fired from 340px out is still 1.36s away when
+   it is first visible. Anything shorter and the clone literally could not see
+   the thing that hit it. */
+const THREAT_HORIZON = 1.6;      // seconds of look-ahead
+const THREAT_REACH   = 420;      // px — beyond this a shot is not our problem
+
+function threatScan(c){
+  let worst = null, worstTTI = Infinity, worstSign = 0;
+  const bullets = game.bullets;
+  for(let i=0;i<bullets.length;i++){
+    const b = bullets[i];
+    if(!b.hostile || b.dead) continue;
+    const rx = c.x - b.x, ry = c.y - b.y;
+    const rvx = -b.vx, rvy = -b.vy;          // bullet velocity in our frame
+    const rel = Math.hypot(rx, ry);
+    if(rel > THREAT_REACH) continue;
+    /* Closest approach of a straight-line shot. Bullets are real objects with
+       real velocity, so the classic relative-motion solve works directly and
+       `t` comes out in seconds. */
+    const v2 = rvx*rvx + rvy*rvy;
+    if(v2 < 1) continue;
+    const t = -(rx*rvx + ry*rvy) / v2;
+    if(t < 0) continue;                       // already past us
+    if(t > THREAT_HORIZON) continue;          // plenty of time
+    const cx2 = rx + rvx*t, cy2 = ry + rvy*t;
+    const miss = Math.hypot(cx2, cy2);
+    const hitR = (b.r || 5) + 15 + 5;
+    if(miss > hitR) continue;                 // it sails by anyway
+    /* Which way do we step? Sign the perpendicular by the actual side our
+       body sits on relative to the shot's path — the cross product gives
+       that directly, and stepping to that side is the shortest escape. */
+    const cross = b.vx*ry - b.vy*rx;
+    const sign = cross >= 0 ? 1 : -1;
+    if(t < worstTTI){
+      worstTTI = t; worst = b; worstSign = sign;
+    }
+  }
+  /* incoming mortar shell: its landing marker is a countdown, so the clone
+     gets a clean "leave this spot" signal with real lead time */
+  let shell = null, shellTTL = Infinity;
+  for(const sh of (game.shells||[])){
+    if(!sh.alive || !sh.hostile) continue;
+    const dd = Math.hypot(sh.tx - c.x, sh.ty - c.y);
+    if(dd > 78 + 40) continue;                 // not going to land on us
+    const ttl = Math.max(0, sh.dur - sh.t);
+    if(ttl < shellTTL){ shellTTL = ttl; shell = sh; }
+    if(ttl < worstTTI){                        // treat it like a slow bullet
+      worstTTI = shellTTL;
+      worst = worst || {vx:0, vy:0, r:8, _shell:true};
+      worstSign = (c.x - sh.tx) >= 0 ? 1 : -1;
+    }
+  }
+  /* blast threats: a bomber about to blow, or a mortar shell landing near us */
+  let blast = shell ? clamp(1 - shellTTL/1.0, 0, 1) : 0;
+  for(const e of game.enemies){
+    if(!e.alive) continue;
+    const d = dist(c, e);
+    if(d > 200) continue;
+    if(e.explode && e.fuse !== undefined && e.fuse < .55 && d < 110){
+      const urgency = (110 - d)/110 * (0.55 - e.fuse)/0.55;
+      if(urgency > blast) blast = urgency;
+    }
+  }
+  /* proximity of a heavy melee body is a threat in its own right */
+  let heavy = null, heavyD = Infinity;
+  for(const e of game.enemies){
+    if(!e.alive) continue;
+    if(e.r < 18 && !e.boss) continue;         // only the big, dangerous bodies
+    const d = dist(c, e);
+    if(d < heavyD){ heavyD = d; heavy = e; }
+  }
+  return {bullet: worst, tti: worstTTI, sign: worstSign, blast, heavy, heavyD, shell, shellTTL};
+}
+
+/* Reward shaping. The old brain only knew "I got hurt" and "I hurt it", which
+   is far too sparse to learn a dodge from — by the time HP moves, the mistake
+   is half a second old. These shaped terms give credit at the moment of the
+   decision: leaving a shot's path, keeping distance from a bomber's fuse, and
+   the near-miss bonus for a shot that passes close without landing. */
+function shapeReward(c, threat, dt){
+  let r = 0;
+  if(threat.bullet) r += 0.05;                       // being under fire is pressure
+  if(threat.blast > 0) r -= 0.25 * threat.blast;     // punishment for standing in a fuse
+  if(threat.heavy && threat.heavyD < 70) r -= 0.008;
+  /* survival pays a little, and pays more when the clone is hurt (it should
+     value caution when it is nearly dead rather than charging regardless) */
+  const hurtFrac = 1 - c.hp/c.maxHp;
+  r += dt * (0.03 + hurtFrac*0.05);
+  return r;
 }
 /* Where should a clone wander to next when there is nothing to shoot?
    Rooms nobody has finished are the interesting places — the squad should be
@@ -4700,7 +4950,7 @@ function cloneMove(c,dt){
     }
     const steer = steerAround(c, goal.x, goal.y, dt, {repath:.7});
     const gl = Math.hypot(steer.x-c.x, steer.y-c.y) || 1;
-    const sp = stat(c).speed*0.85;
+    const sp = stat(c).speed*0.85*((c.slowT||0)>0?(c.slowMul||1):1);
     const beforeX = c.x, beforeY = c.y;
     c.x = clamp(c.x + (steer.x-c.x)/gl*sp*dt, 17, WORLD_W-17);
     c.y = clamp(c.y + (steer.y-c.y)/gl*sp*dt, 17, WORLD_H-17);
@@ -4713,31 +4963,182 @@ function cloneMove(c,dt){
     return;
   }
 
+  /* ---- threat perception: this is the part the old brain did not have ---- */
+  const threat = threatScan(c);
+
+  /* Time-on-target buckets rather than raw floats: a table of float keys
+     never generalises, so the clone would have to see the exact same shot
+     twice before it learned anything. */
+  const ttiBucket = !threat.bullet ? 'none'
+                  : threat.tti < .18 ? 'now'
+                  : threat.tti < .38 ? 'soon' : 'later';
+  const dodgeState = (c.hp/c.maxHp<.45?'low':'ok')+'|'+ttiBucket+'|'
+    +(threat.blast>.35?'blast':threat.blast>0?'fuse':'calm')+'|'
+    +(threat.heavy ? (threat.heavyD<90?'heavy':'big') : 'clear')+'|'
+    +(c.x<90||c.x>WORLD_W-90||c.y<90||c.y>WORLD_H-90?'edge':'open');
   const state = (c.hp/c.maxHp<.4?'low':'ok')+'|'+(d<100?'near':d<250?'mid':'far')+'|'
-    +(!target?'none':target.type==='brute'?'big':'normal')+'|'
+    +(!target?'none':target.r>=18?'big':'normal')+'|'
     +(c.x<70||c.x>WORLD_W-70||c.y<70||c.y>WORLD_H-70?'edge':'open');
+
   c.decision -= dt;
+  c.reward += shapeReward(c, threat, dt);
+
+  /* the evasion policy is re-evaluated on its own fast clock */
+  c.dodgeDecision = (c.dodgeDecision === undefined ? 0 : c.dodgeDecision) - dt;
+  if(c.dodgeDecision <= 0){
+    const dState = dodgeState;
+    if(c.dodgeState !== null && c.dodgeState !== dState){
+      /* keep the two tables' horizons honest: dodge state changed */
+    }
+    if(c.dodgeState !== null && c.prevDodgeActive){
+      const dv = dodgeValues(c.dodgeState), nv = dodgeValues(dState);
+      const target = c.dodgeReward + 0.62*Math.max(...nv) - dv[c.dodgeAction];
+      dv[c.dodgeAction] += 0.2*target;
+    }
+    const row = dodgeValues(dState);
+    const trained = row.some(v => Math.abs(v) > .02);
+    c.dodgeAction = (!trained || Math.random() < DODGE_EPS)
+      ? Math.floor(rand(0, DODGE_ACTIONS))
+      : row.indexOf(Math.max(...row));
+    c.dodgeState = dState;
+    c.dodgeReward = 0;
+    c.prevDodgeActive = !!threat.bullet || threat.blast > .2;
+    c.dodgeDecision = .2;
+  }
+
   if(c.decision <= 0){
+    const urgent = !!threat.bullet || threat.blast > .3;
+
+    /* ---- outcome credit for the last dodge ----
+       A dodge that actually broke the lock is the single most valuable thing
+       this brain can learn, so it is paid out here at the moment the result is
+       observable: the shot is gone (or no longer tracking us) and we are
+       untouched. A dodge that did not help is paid out negatively so the row
+       does not just accrue free reward for flailing. */
+    if(c.dodgePending){
+      const stillThreatened = !!threat.bullet && threat.tti < .35;
+      if(!stillThreatened && (c.hp >= (c.dodgeHp||c.hp))){
+        c.dodgeReward += 2.4;                  // clean evade
+        c.reward += .9;                        // and it was the right call overall
+        c._evades = (c._evades||0) + 1;
+      } else if(c.hp < (c.dodgeHp||c.hp)){
+        c.dodgeReward -= 1.2;                  // dodged into something else
+      } else {
+        c.dodgeReward -= .2;
+      }
+      c.dodgePending = false;
+      c.dodgeHp = c.hp;
+    }
+    /* ------------------ learn from the last decision ------------------ */
     if(c.state !== null){
       const old = qValues(c.state), next = qValues(state);
-      const edge = c.x < 100 || c.x > WORLD_W-100 || c.y < 100 || c.y > WORLD_H-100;
       old[c.action] += 0.18*(c.reward + 0.85*Math.max(...next) - old[c.action]);
-      if(edge) old[c.action] -= 0.02;
     }
     const values = qValues(state);
-    c.action = Math.random() < .22 ? Math.floor(rand(0,5)) : values.indexOf(Math.max(...values));
+    /* Being shot at is not a reason to experiment with positioning. */
+    const eps = urgent ? .07 : .22;
+    c.action = Math.random() < eps
+      ? Math.floor(rand(0, ACTION_COUNT))
+      : values.indexOf(Math.max(...values));
     c.state = state;
     c.reward = 0;
     c.decision = .4;
   }
+
   const dx = (target.x-c.x)/(d||1), dy = (target.y-c.y)/(d||1);
+
+  /* ---------------- dodge execution ----------------
+     The evasion policy picks WHICH evasion (sidestep, break away, dash
+     through); the geometry tells us which way is actually clear. Until the row
+     has been sampled the geometry alone is used, so an untrained clone still
+     steps out of the line of fire instead of standing in it. */
+  let dodgeX = 0, dodgeY = 0, dodgeW = 0;
+  if(threat.bullet && threat.shell){
+    /* mortar: run straight out of the marked circle */
+    const sh = threat.shell;
+    const ax = c.x - sh.tx, ay = c.y - sh.ty;
+    const al = Math.hypot(ax, ay) || 1;
+    dodgeX = ax/al; dodgeY = ay/al; dodgeW = 1.9;
+    if(threat.shellTTL < .3 && c.dashCd <= 0){
+      c.dashTime = .2; c.dashCd = Math.max(.45, stat(c).dashCooldown*.7);
+      c.invuln = Math.max(c.invuln, .26);
+      c.dodgeReward += .2;
+      c.dodgePending = true; c.dodgeHp = c.hp;
+    }
+  } else if(threat.bullet){
+    const b = threat.bullet;
+    /* perpendicular to the shot, signed toward the side we are already on */
+    const px = -b.vy, py = b.vx;
+    const pl = Math.hypot(px, py) || 1;
+    const sgn = threat.sign || 1;
+    const leftX = (px/pl)*(sgn > 0 ? 1 : -1), leftY = (py/pl)*(sgn > 0 ? 1 : -1);
+    const row = dodgeTable[c.dodgeState];
+    const trained = row && row.some(v => Math.abs(v) > .02);
+    const act = trained ? c.dodgeAction : 0;      // 0 = sidestep (geometric)
+    const urgency = threat.tti < .18 ? 2.3 : threat.tti < .38 ? 1.7 : .9;
+    if(act === 0){ dodgeX = leftX; dodgeY = leftY; dodgeW = urgency; }
+    else if(act === 1){ dodgeX = -leftX; dodgeY = -leftY; dodgeW = urgency; }
+    else if(act === 2){                                  // break away
+      const ax = c.x - target.x, ay = c.y - target.y;
+      const al = Math.hypot(ax, ay) || 1;
+      dodgeX = ax/al*.8 + leftX*.5; dodgeY = ay/al*.8 + leftY*.5; dodgeW = urgency;
+    } else if(act === 3){                                // dash through
+      dodgeX = leftX; dodgeY = leftY; dodgeW = urgency*1.2;
+      if(c.dashCd <= 0 && threat.tti < .3){
+        c.dashTime = .2; c.dashCd = Math.max(.45, stat(c).dashCooldown*.7);
+        c.invuln = Math.max(c.invuln, .26);
+        c.dodgeReward += .2;
+        c.dodgePending = true; c.dodgeHp = c.hp;
+      }
+    } else {                                             // 4 = hold and shoot
+      dodgeX = 0; dodgeY = 0; dodgeW = 0;
+    }
+    /* hard safety net: the shot will land in under 0.18s and we have not
+       moved out of the line yet — dash, whatever the table says */
+    if(threat.tti < .18 && c.dashCd <= 0){
+      c.dashTime = .18; c.dashCd = Math.max(.4, stat(c).dashCooldown*.7);
+      c.invuln = Math.max(c.invuln, .22);
+      c.dodgePending = true; c.dodgeHp = c.hp;
+    }
+  }
+  if(threat.blast > .15){
+    let ax = 0, ay = 0;
+    for(const e of game.enemies){
+      if(!e.alive || !e.explode || e.fuse === undefined || e.fuse > .6) continue;
+      const dd = dist(c, e);
+      if(dd > 130 || dd < 1) continue;
+      ax += (c.x-e.x)/dd; ay += (c.y-e.y)/dd;
+    }
+    const al = Math.hypot(ax, ay);
+    if(al > .01){ dodgeX += ax/al*1.4; dodgeY += ay/al*1.4; dodgeW = Math.max(dodgeW, 1.6); }
+  }
+
   let vx = 0, vy = 0;
   switch(c.action){
-    case 0: vx = dx; vy = dy; break;
-    case 1: vx = -dx; vy = -dy; break;
-    case 2: vx = -dy; vy = dx; break;
-    case 3: vx = dy; vy = -dx; break;
-    case 4: vx = -dx*.55-dy*.8; vy = -dy*.55+dx*.8; break;
+    case 0: vx = dx; vy = dy; break;                 // close in
+    case 1: vx = -dx; vy = -dy; break;               // back off
+    case 2: vx = -dy; vy = dx; break;                // strafe clockwise
+    case 3: vx = dy; vy = -dx; break;                // strafe counter-clockwise
+    case 4: vx = -dx*.55-dy*.8; vy = -dy*.55+dx*.8; break;   // diagonal retreat
+  }
+  /* Priority, not blend.
+     Not being hit outranks everything else, so an imminent shot takes the
+     whole movement vector for that frame. A shot that is still a way out only
+     bends the route, and a clone with nothing incoming moves exactly as its
+     combat brain says. Blending the two together (the first attempt) left the
+     clones drifting sideways *and* closing, which read as jitter and got them
+     surrounded. */
+  if(dodgeW > 0){
+    const dl = Math.hypot(dodgeX, dodgeY) || 1;
+    dodgeX /= dl; dodgeY /= dl;
+    if(dodgeW >= 1.5){          // shot about to land: dodge is the whole move
+      vx = dodgeX; vy = dodgeY;
+    } else {                    // early warning: nudge the route aside
+      vx = vx*0.45 + dodgeX*0.55;
+      vy = vy*0.45 + dodgeY*0.55;
+      const l = Math.hypot(vx, vy) || 1;
+      vx /= l; vy /= l;
+    }
   }
 
   /* Navigation override: if the enemy is behind a wall the Q action is
@@ -4763,7 +5164,8 @@ function cloneMove(c,dt){
     c.dashCd = stat(c).dashCooldown;
     c.invuln = .25;
   }
-  const speed = stat(c).speed*(c.dashTime>0?2.7:1);
+  const slowK = (c.slowT||0) > 0 ? (c.slowMul||1) : 1;
+  const speed = stat(c).speed*(c.dashTime>0?2.7:1)*slowK;
   c.moving = Math.hypot(vx,vy) > .05;
   c.legPhase += dt*(c.moving?9:0);
 
@@ -4777,9 +5179,45 @@ function cloneMove(c,dt){
   if(ensureMoving(c, beforeX, beforeY, dt, speed, prevVx, prevVy)){
     // path following already handles the real steering; only re-roll the
     // Q action when we were actually relying on it
-    if(!c.path) c.action = Math.floor(rand(0,5));
+    if(!c.path) c.action = Math.floor(rand(0,ACTION_COUNT));
   }
   c.reward += dt*.04;
+}
+
+/* ------------------------- neighbour lookup -------------------------
+   A coarse uniform grid over the horde. Only used for the mutual-push
+   separation term, where "is anything within ~50px" is the whole question. */
+const HORDE_CELL = 110;
+function buildHordeGrid(list){
+  const g2 = new Map();
+  for(let i=0;i<list.length;i++){
+    const e = list[i];
+    if(!e.alive) continue;
+    const k = (Math.floor(e.x/HORDE_CELL))+','+(Math.floor(e.y/HORDE_CELL));
+    let bucket = g2.get(k);
+    if(!bucket){ bucket = []; g2.set(k, bucket); }
+    bucket.push(e);
+  }
+  g2.cell = HORDE_CELL;
+  return g2;
+}
+function forNeighbours(grid, e, fn){
+  const cx = Math.floor(e.x/grid.cell), cy = Math.floor(e.y/grid.cell);
+  for(let oy=-1; oy<=1; oy++){
+    for(let ox=-1; ox<=1; ox++){
+      const bucket = grid.get((cx+ox)+','+(cy+oy));
+      if(!bucket) continue;
+      for(let i=0;i<bucket.length;i++) fn(bucket[i]);
+    }
+  }
+}
+
+/* Slow puddles (the trapper's slick) decay on every squad member the same way. */
+function tickSlow(f, dt){
+  if((f.slowT||0) > 0){
+    f.slowT -= dt;
+    if(f.slowT <= 0){ f.slowT = 0; f.slowMul = 1; }
+  }
 }
 
 /* Shared "am I grinding against something?" recovery, used by clones and
@@ -4832,6 +5270,7 @@ function tickCooldown(dt){
   // the player (and clones) may still move and grab loot during the breather
   p.hit = Math.max(0, p.hit-dt);
   p.invuln = Math.max(0, p.invuln-dt);
+  tickSlow(p, dt);
   p.dashCd = Math.max(0, p.dashCd-dt);
   p.dashTime = Math.max(0, p.dashTime-dt);
   p.muzzle = Math.max(0, p.muzzle-dt);
@@ -4859,7 +5298,7 @@ function tickCooldown(dt){
         }
       }
     }
-    const speed = stat(p).speed*(p.dashTime>0?2.7:1)*analog;
+    const speed = stat(p).speed*(p.dashTime>0?2.7:1)*analog*((p.slowT||0)>0?(p.slowMul||1):1);
     p.moving = Math.abs(dx)+Math.abs(dy) > .05;
     p.legPhase += dt*(p.moving?10:0);
     if(p.moving){ p.aimAngle = Math.atan2(dy,dx); p.face = dx < -0.01 ? -1 : 1; }
@@ -4876,6 +5315,7 @@ function tickCooldown(dt){
     if(!c.alive) continue;
     c.hp = Math.min(c.maxHp, c.hp + stat(c).regen*dt);
     c.hit = Math.max(0, c.hit-dt);
+    tickSlow(c, dt);
     cloneMove(c, dt);
   }
 
@@ -4922,19 +5362,48 @@ function beginCooldown(){
   notice('ROUND ' + String(game.pendingStage || game.stage).padStart(2,'0'), '準備中… 移動して体勢を整えろ');
 }
 
+/* The squad grows with the round: by round N the field should hold N clones.
+   New bodies arrive at the start of the round, at the edge of the camera so
+   they walk in rather than popping into existence on top of a firefight. */
+const SQUAD_CAP = 60;          // hard ceiling so a long run cannot freeze the game
+function reinforceSquad(){
+  const want = Math.min(SQUAD_CAP, Math.max(1, game.stage));
+  let added = 0;
+  while(game.clones.filter(c=>c.alive).length < want){
+    const a = rand(0, TAU), r = 210 + Math.random()*140;
+    const clone = fighter(
+      clamp(game.player.x + Math.cos(a)*r, 60, WORLD_W-60),
+      clamp(game.player.y + Math.sin(a)*r, 60, WORLD_H-60), true);
+    /* arrivals start the round on the squad's upgrade level so they are not
+       dead weight for the first thirty seconds */
+    clone.level = Math.max(1, game.player.level);
+    clone.maxHp = clone.hp = 100 + (clone.level-1)*12;
+    game.clones.push(clone);
+    game.rings.push({x:clone.x,y:clone.y,r:8,maxR:96,life:.55,max:.55,color:'#ffcf8a',width:3});
+    particles(clone.x, clone.y, '#ffca86', 10, .9);
+    added++;
+    if(added > SQUAD_CAP) break;
+  }
+  return added;
+}
+
 function beginRound(){
   game.state = 'playing';
   game.cooldown = 0;
   game.roundReady = true;
   if(game.pendingStage && game.pendingStage !== game.stage) game.stage = game.pendingStage;
   game.pendingStage = 0;
+  game.clones = game.clones.filter(c => c.alive);
+  const arrived = reinforceSquad();
   game.time = 30;
   game.spawnPaused = false;
   restoreBuildingState();
   game.bossTimer = (game.stage % 5 === 0) ? 0.8 : -1;
   $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
   if(game.bossTimer > 0) notice('WARNING','ボスが接近している…');
-  else notice('STAGE '+String(game.stage).padStart(2,'0'),'新たなクローンが出現');
+  else notice('STAGE '+String(game.stage).padStart(2,'0'),
+    arrived > 0 ? (arrived+'体のクローンが合流 — 分隊'+game.clones.length+'体')
+                : ('分隊'+game.clones.length+'体'));
 }
 
 /* entering a building spawns its loot + guards; clearing it marks it done */
@@ -5031,16 +5500,38 @@ function tick(dt){
     game.bossTimer -= dt;
     if(game.bossTimer <= 0 && !game.boss) spawnBoss();
   }
+  /* The horde scales with the squad: by round N there are N clones on the
+     field, so the population cap has to grow with them or the map reads as
+     empty and the squad never gets pressured. Stage also raises the cap. */
+  /* 180 is where a frame still fits in a comfortable budget on a mid phone:
+     the horde update measures ~25ms at that population and climbs sharply past
+     it. The cap grows with the squad but is clamped well short of that cliff. */
+  /* Both the population and the spawning rate have to track the squad: a solo
+     clone must never be buried under forty enemies, while a twenty-strong
+     squad should be fighting a real horde. */
+  const squadLive = 1 + game.clones.filter(c=>c.alive).length;
+  const FIELD_CAP = Math.min(185, 18 + squadLive*7 + (game.stage-1)*3);
   game.spawn -= dt;
   if(game.spawn <= 0){
     const bossStage = game.stage % 5 === 0;
-    if(game.enemies.length < (bossStage ? 26 : 90)) spawnEnemy();
-    game.spawn = (bossStage ? 1.6 : Math.max(.30, 1.05-game.stage*.055))*rand(.8,1.2);
+    const cap = bossStage ? Math.min(40, 26 + game.stage) : FIELD_CAP;
+    /* The squad's firepower grows with its head count, so a single spawn per
+       interval can never keep the field busy — a late run with twenty clones
+       mowed the horde down as fast as it arrived and the map felt empty.
+       Burst-spawn in proportion to how much shooters are on the field. */
+    let burst = 1 + Math.floor(squadLive/5);
+    if(bossStage) burst = 1;
+    for(let nb=0; nb<burst && game.enemies.length < cap; nb++) spawnEnemy();
+    game.spawn = (bossStage ? 1.6 : Math.max(.10, .55-game.stage*.030))*rand(.8,1.2);
   }
 
   const fighters = [game.player, ...game.clones.filter(c=>c.alive)];
   /* summoned allies are legitimate targets for the horde */
   const allyTargets = allyList();
+  /* Separation is the only part of the horde update that is n². At 250+
+     enemies that alone cost ~45ms a frame, which reads as a freeze, so the
+     neighbour query goes through a coarse bucket grid instead. */
+  const hordeGrid = buildHordeGrid(game.enemies);
   for(const e of game.enemies){
     e.chronoSlow = 0;
     if(e.weakenT > 0) e.weakenT = Math.max(0, e.weakenT - dt);
@@ -5182,6 +5673,59 @@ function tick(dt){
         if(od < d){ d = od; target = o; }
       }
     }
+    /* ---- charger: winds up, then rushes in a straight line ---- */
+    if(e.charger){
+      e.chargeCd = (e.chargeCd === undefined ? rand(1.4,2.6) : e.chargeCd) - dt;
+      if(e.rush > 0){
+        e.rush -= dt;
+        e.x = clamp(e.x + Math.cos(e.rushA)*e.speed*3.4*dt, 16, WORLD_W-16);
+        e.y = clamp(e.y + Math.sin(e.rushA)*e.speed*3.4*dt, 16, WORLD_H-16);
+        resolveSolid(e);
+        for(const f of allyTargets){
+          if(f.alive && f.invuln <= 0 && dist(e,f) < e.r + (f.r||15)){
+            hurt(f, e.damage*1.3, e);
+            if(f.level !== undefined) f.invuln = .4;
+            e.rush = 0;
+          }
+        }
+        if(Math.random() < dt*22) particles(e.x, e.y, '#ffb066', 2, .7);
+        if(e.rush <= 0) e.chargeCd = rand(2.4, 3.6);
+        continue;
+      }
+      if(e.chargeCd <= 0){
+        const [ct] = nearestSquadMember(e);
+        if(ct && dist(e, ct) < 420){
+          e.rush = .3;
+          e.rushA = Math.atan2(ct.y-e.y, ct.x-e.x);
+          game.rings.push({x:e.x,y:e.y,r:8,maxR:46,life:.26,max:.26,color:'#ffb066',width:3});
+        }
+      }
+    }
+    /* ---- orbiter: circles its prey, closing a little each pass ---- */
+    if(e.orbit && target){
+      const od = dist(e, target);
+      const ang = Math.atan2(e.y-target.y, e.x-target.x) + (e.orbitDir || (e.orbitDir = Math.random()<.5?1:-1))*dt*1.7;
+      const rad = od > 180 ? od*.985 : od < 120 ? od*1.01 : od;
+      e.x = clamp(target.x + Math.cos(ang)*rad, 16, WORLD_W-16);
+      e.y = clamp(target.y + Math.sin(ang)*rad, 16, WORLD_H-16);
+      resolveSolid(e);
+      e.orbitCd = (e.orbitCd||0) - dt;
+      if(e.orbitCd <= 0 && od < 150){
+        e.orbitCd = 1.8;
+        hurt(target, e.damage, e);
+        if(target.level !== undefined) target.invuln = .35;
+      }
+    }
+    /* ---- trapper: leaves a slowing slick on the ground ---- */
+    if(e.goo && target){
+      e.gooCd = (e.gooCd === undefined ? 1.2 : e.gooCd) - dt;
+      if(e.gooCd <= 0 && dist(e,target) < 260){
+        e.gooCd = 2.2;
+        game.hazards.push({x:e.x, y:e.y, r:46, kind:'goo', owner:e,
+                           life:5.5, maxLife:5.5, tick:0, tickRate:.3,
+                           seed:rand(0,100), alive:true});
+      }
+    }
     if(target){
       const chrono = e.chronoSlow > 0 ? e.chronoSlow : 1;
       const sp = e.speed*(e.slow>0?.38:1)*chrono;
@@ -5206,15 +5750,15 @@ function tick(dt){
         else if(straight < e.keep*1.08){ dx = 0; dy = 0; }
       }
       // light separation so the horde spreads out instead of stacking
-      for(const o of game.enemies){
-        if(o === e || !o.alive) continue;
-        const od = dist(e,o);
+      forNeighbours(hordeGrid, e, o => {
+        if(o === e || !o.alive) return;
+        const od = Math.hypot(e.x-o.x, e.y-o.y);
         const min = e.r + o.r;
         if(od > 0 && od < min){
           dx += (e.x-o.x)/od*.9;
           dy += (e.y-o.y)/od*.9;
         }
-      }
+      });
       const l = Math.hypot(dx,dy) || 1;
       const bx = e.x, by = e.y;
       e.x = clamp(e.x + dx/l*sp*dt, 10, WORLD_W-10);
@@ -5259,8 +5803,46 @@ function tick(dt){
       if(e.atkCd > 0) e.atkCd = Math.max(0, e.atkCd - dt*0.6);
     }
 
+    /* ---- mortar: lobs a heavy shell that bursts into shrapnel on landing ---- */
+    if(e.shell && target){
+      e.shootCd = Math.max(0, (e.shootCd === undefined ? rand(1.2,2.2) : e.shootCd) - dt);
+      if(e.shootCd <= 0 && dist(e,target) < 460){
+        e.shootCd = 3.4 + Math.random()*.9;
+        e.swing = .4;
+        const lead = .55;
+        const a = Math.atan2(target.y-e.y, target.x-e.x);
+        /* aim where the target is going to be, not where it is */
+        const tx = target.x + (target.vx||0)*lead*60;
+        const ty = target.y + (target.vy||0)*lead*60;
+        game.shells.push({
+          x:e.x, y:e.y, sx:e.x, sy:e.y, tx:tx, ty:ty, t:0, dur:lead+.35,
+          r:7, dmg:e.damage, owner:e, hostile:true, color:'#ffb066'
+        });
+        particles(e.x, e.y, '#ffb066', 6, .8);
+      }
+    }
+    /* ---- hexer: three-round burst spread ---- */
+    if(e.burst && target){
+      e.shootCd = Math.max(0, (e.shootCd === undefined ? rand(.8,1.8) : e.shootCd) - dt);
+      if(e.shootCd <= 0 && dist(e,target) < 380){
+        e.shootCd = 3.1 + Math.random()*.7;
+        e.swing = .3;
+        const a = Math.atan2(target.y-e.y, target.x-e.x);
+        for(let i=-1;i<=1;i++){
+          const ang = a + i*.10;
+          game.bullets.push({
+            x:e.x+Math.cos(ang)*14, y:e.y+Math.sin(ang)*14, px:e.x, py:e.y,
+            vx:Math.cos(ang)*230, vy:Math.sin(ang)*230,
+            life:1.4, maxLife:1.4, damage:e.damage*.7, owner:null, hostile:true,
+            r:4.4, pierce:0, hitList:[], color:'#c9a2ff'
+          });
+        }
+        particles(e.x, e.y, '#c9a2ff', 5, .8);
+      }
+    }
+
     /* ---- ranged species: spit a projectile at the player ---- */
-    if(e.ranged && target && target.level !== undefined){
+    if(e.ranged && !e.shell && !e.burst && target && target.level !== undefined){
       e.shootCd = Math.max(0, (e.shootCd === undefined ? rand(.6,1.6) : e.shootCd) - dt);
       if(e.shootCd <= 0 && dist(e, target) < 340){
         e.shootCd = 1.9 + Math.random()*.7;
@@ -7823,6 +8405,32 @@ function drawMissile(ms,t){
   ctx.restore();
 }
 function drawShell(sh,t){
+  /* hostile mortar lob: draw the landing marker and the arcing shell */
+  if(sh.hostile){
+    const R = 78;
+    ctx.save();
+    ctx.translate(sh.tx, sh.ty);
+    const k = clamp(sh.t/sh.dur, 0, 1);
+    ctx.fillStyle = `rgba(255,120,80,${.10+.16*k})`;
+    ctx.beginPath(); ctx.arc(0,0,R,0,TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(255,170,110,${.45+.4*k})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7,7]); ctx.lineDashOffset = -t*26;
+    ctx.beginPath(); ctx.arc(0,0,R,0,TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(0,0,R*(1-k*.85),0,TAU);
+    ctx.strokeStyle = 'rgba(255,205,150,.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(sh.x, sh.y - (sh.h||0));
+    glow(GLOW.red, 0, 0, 26, .5);
+    ctx.fillStyle = '#5a3a30';
+    ctx.beginPath(); ctx.arc(0,0,7,0,TAU); ctx.fill();
+    ctx.fillStyle = '#ffb066';
+    ctx.beginPath(); ctx.arc(-2,-2,3,0,TAU); ctx.fill();
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.translate(sh.x, sh.y);
   glow(GLOW.amber, 0, 0, 30, .45);
@@ -8604,7 +9212,9 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     solidAt, blockedAhead, findPath, navInit, buildingDoor, steerAround,
     updateBuildings, spawnBuildingGuards, spawnBuildingLoot, spawnBuildingCages,
     newGame, endGame, fighter, nearest, cloneMove, tickCooldown, pointInBuilding,
-    roomBusiness, get touch(){ return touch; }, keys, beginCooldown, stageClear
+    roomBusiness, get touch(){ return touch; }, keys, beginCooldown, stageClear,
+    ENEMY_TYPES, qValues, qTable, saveBrain, dodgeTable, threatScan, reinforceSquad, cloneRoster:()=>game.clones,
+    get round(){ return game.round; }, get bullets(){ return game.bullets; }, get enemies(){ return game.enemies; }
   };
 }
 })();
