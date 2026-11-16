@@ -707,7 +707,8 @@ function newGame(){
     particles:[], texts:[], beams:[], rings:[], sparks:[], drops:[],
     spawn:1, pick:0, pendingLevels:0, arsenalSig:'',
     cooldown:0, cooldown0:5, roundReady:false, roundAnchor:{x:0,y:0}, pendingStage:0,
-    boss:null, bossFlash:0, eliteCount:0, frenzy:0, afterglow:0, bossTimer:-1
+    boss:null, bossFlash:0, eliteCount:0, frenzy:0, afterglow:0, bossTimer:-1,
+    stashed:null, bodySwitches:0
   };
   updateHUD();
 }
@@ -953,8 +954,30 @@ function updateHUD(){
   if(squad.length){
     $('cloneCount').title = squad.map(c=>'Lv.'+c.level).join(' / ');
   }
+  updateSquadActivity();
   updateBossBar();
   updateArsenal();
+}
+
+/* A one-line readout of what the squad is doing right now, so it is obvious
+   that the clones are off searching rooms rather than just shadowing you. */
+function updateSquadActivity(){
+  const el = $('squadNote');
+  if(!el) return;
+  const squad = game.clones.filter(c=>c.alive);
+  if(!squad.length){ el.textContent = ''; return; }
+  let scouting = 0, fighting = 0, looting = 0;
+  for(const c of squad){
+    const [t] = nearest(c);
+    if(t) fighting++;
+    else if(c.wanderGoal) scouting++;
+    else looting++;
+  }
+  const bits = [];
+  if(fighting) bits.push('戦闘 '+fighting);
+  if(scouting) bits.push('探索 '+scouting);
+  if(looting) bits.push('回収 '+looting);
+  el.textContent = bits.join(' / ');
 }
 function updateBossBar(){
   const bar = $('bossBar');
@@ -1095,8 +1118,65 @@ function grantXp(f, amount){
   if(leveled && f.clone) game.rings.push({x:f.x,y:f.y,r:10,maxR:70,life:.5,max:.5,color:'#ffcf8a',width:2});
 }
 
+/* Rooms are generated lazily when the squad first walks in. A stage break in
+   the middle of a room must not eat that work, so anything still alive inside
+   a building is parked here and put back when the next round starts. */
+function stashBuildingState(){
+  const guards = [], drops = [], cages = [];
+  for(const e of game.enemies){
+    if(e && e.alive && e.building){
+      guards.push({e, b:e.building, hp:e.hp, maxHp:e.maxHp});
+    }
+  }
+  for(const d of game.drops){
+    if(d && d.alive && d.building) drops.push(d);
+  }
+  for(const cg of (game.cages||[])){
+    if(cg && !cg.freed && cg.building) cages.push(cg);
+  }
+  game.stashed = {guards, drops, cages};
+  /* take them out of the live world so the break is quiet */
+  for(const {e} of guards) e.alive = false;
+  const gset = new Set(guards.map(x=>x.e));
+  game.enemies = game.enemies.filter(e=>!gset.has(e));
+  const dset = new Set(drops);
+  game.drops = game.drops.filter(d=>!dset.has(d));
+  const cset = new Set(cages);
+  game.cages = (game.cages||[]).filter(cg=>!cset.has(cg));
+}
+
+function restoreBuildingState(){
+  const st = game.stashed;
+  if(!st) return;
+  game.stashed = null;
+  const p = game.player;
+  for(const rec of st.guards){
+    const e = rec.e;
+    e.alive = true;
+    e.hp = Math.min(rec.maxHp, Math.max(rec.hp, rec.maxHp*0.35));
+    e.hit = 0; e.swing = 0; e.stun = 0;
+    e.path = null; e.pathIdx = 0;
+    /* never re-spawn a guard on top of the squad */
+    if(p && dist(e, p) < 120){
+      const a = Math.atan2(e.y-p.y, e.x-p.x) || rand(0,TAU);
+      e.x = clamp(p.x + Math.cos(a)*220, 40, WORLD_W-40);
+      e.y = clamp(p.y + Math.sin(a)*220, 40, WORLD_H-40);
+      resolveSolid(e);
+      e.homeX = e.x; e.homeY = e.y;
+    }
+    game.enemies.push(e);
+  }
+  for(const d of st.drops){ d.alive = true; game.drops.push(d); }
+  for(const cg of st.cages){ game.cages.push(cg); }
+}
+
 function stageClear(){
   if(game.state !== 'playing') return;
+  /* A room you were halfway through stays yours to finish: its guards, loot
+     and caged clones are put on ice and handed back next round instead of
+     being deleted (deleting them used to leave the room with nothing left in
+     it, which the clear check then read as "conquered" for free). */
+  stashBuildingState();
   game.enemies = [];
   game.bullets = [];
   game.beams = [];
@@ -4058,8 +4138,49 @@ function hurt(t, amount, source){
       }
       saveBrain();
     }
-    if(t === game.player) endGame();
+    if(t === game.player) handOverBody();
   }
+}
+
+/* The squad is one continuous life: when the body you are driving dies, you
+   wake up in the nearest surviving clone — same stats, same kit, same world.
+   Only when the last member of the squad falls is the run actually over. */
+function handOverBody(){
+  const p = game.player;
+  let best = null, bd = Infinity;
+  for(const c of game.clones){
+    if(!c.alive) continue;
+    if(c.hp <= 0) continue;
+    const d = dist(p, c);
+    if(d < bd){ bd = d; best = c; }
+  }
+  if(!best){ endGame(); return; }
+
+  /* The clone becomes the player: same object shape, opposite `clone` flag.
+     Everything the squad earned stays exactly as it was. */
+  game.clones = game.clones.filter(c => c !== best);
+  best.clone = false;
+  best.alive = true;
+  /* never wake up on 1 HP in the middle of a horde */
+  best.hp = Math.max(Math.round(best.maxHp * 0.6), 1);
+  best.invuln = 2.4;
+  best.decision = 0; best.state = null;
+  best.path = null; best.pathIdx = 0; best.pathGoal = null;
+  game.player = best;
+  cam.x = best.x; cam.y = best.y;
+
+  /* the body you were wearing is left behind as a fallen clone */
+  p.clone = true;
+  p.alive = false;
+  p.hp = 0;
+
+  particles(best.x, best.y, '#c8f681', 26, 1.6);
+  game.rings.push({x:best.x,y:best.y,r:14,maxR:180,life:.7,max:.7,color:'#d8ff9e',width:5});
+  game.texts.push({x:best.x,y:best.y-52,vy:-14,life:2,max:2,text:'BODY SWITCH',color:'#d8ff9e',size:18});
+  shake = Math.min(shake+4, 7);
+  game.bodySwitches = (game.bodySwitches||0) + 1;
+  notice('BODY SWITCH', 'クローンの体に切り替わった');
+  updateHUD();
 }
 
 function bossDefeated(t, killer){
@@ -4096,28 +4217,106 @@ function qValues(state){
   if(!Array.isArray(qTable[state]) || qTable[state].length !== 5) qTable[state] = [0,0,0,0,0];
   return qTable[state];
 }
+/* Where should a clone wander to next when there is nothing to shoot?
+   Rooms nobody has finished are the interesting places — the squad should be
+   pushing into buildings, not orbiting the anchor — but a clone never wanders
+   so far that it abandons the fight, and it never picks the exact same spot
+   twice in a row. */
+function pickExploreSpot(c){
+  const anchor = game.roundAnchor && game.roundAnchor.x ? game.roundAnchor : game.player;
+  const REACH = 1500;                       // how far a clone will scout out
+  const roomy = [];
+  for(const b of worldEnt.buildings){
+    if(b.cleared) continue;
+    const cx = b.x + b.w/2, cy = b.y + b.h/2;
+    const fromAnchor = Math.hypot(cx-anchor.x, cy-anchor.y);
+    if(fromAnchor > REACH) continue;
+    /* a room the squad is already standing in is the most interesting of all */
+    const inIt = pointInBuilding(anchor.x, anchor.y, b);
+    roomy.push({b, cx, cy, score: fromAnchor - (inIt ? 900 : 0)});
+  }
+  if(roomy.length && Math.random() < .75){
+    roomy.sort((a,b2)=>a.score-b2.score);
+    /* mostly the nearest room, occasionally a further one for variety */
+    const pick = roomy[Math.min(roomy.length-1, Math.floor(Math.pow(Math.random(),2.2)*roomy.length))];
+    const b = pick.b;
+    /* aim at a point inside the room, biased toward its doorway so the path
+       solver has an easy time and the squad actually gets in */
+    const door = buildingDoor(b);
+    let tx, ty;
+    if(door && Math.random() < .65){
+      /* just inside the doorway */
+      const inset = 70;
+      if(door.side === 'left'){ tx = b.x + inset; ty = door.y; }
+      else if(door.side === 'right'){ tx = b.x + b.w - inset; ty = door.y; }
+      else if(door.side === 'top'){ tx = door.x; ty = b.y + inset; }
+      else { tx = door.x; ty = b.y + b.h - inset; }
+    } else {
+      tx = b.x + 80 + Math.random()*(b.w-160);
+      ty = b.y + 80 + Math.random()*(b.h-160);
+    }
+    return {x:tx, y:ty};
+  }
+  /* open ground: a wide arc around the anchor, biased away from the last spot */
+  for(let tries=0; tries<8; tries++){
+    const a = rand(0, TAU);
+    const rad = 180 + Math.random()*620;
+    const x = clamp(anchor.x + Math.cos(a)*rad, 60, WORLD_W-60);
+    const y = clamp(anchor.y + Math.sin(a)*rad, 60, WORLD_H-60);
+    if(solidAt(x, y, 30)) continue;
+    if(c.wanderGoal && Math.hypot(x-c.wanderGoal.x, y-c.wanderGoal.y) < 200) continue;
+    return {x, y};
+  }
+  const a = (c.seed||0) + game.elapsed*.4;
+  return {x: clamp(anchor.x + Math.cos(a)*240, 60, WORLD_W-60),
+          y: clamp(anchor.y + Math.sin(a)*240, 60, WORLD_H-60)};
+}
+
 function cloneMove(c,dt){
   const [target,d] = nearest(c);
 
-  /* When there is nothing to fight, a clone should still do something:
-     regroup with the player, and go after nearby loot. This used to be an
-     early `return`, which froze the whole squad the moment the field was
-     cleared. */
+  /* When there is nothing to fight, a clone should still do something.
+     A clone has no special feeling about the player: the original is just
+     another body in the squad, so a clone never singles it out and follows it.
+     Instead it picks whatever is worth walking to — loot first, then the room
+     the squad is working on, then a slow sweep of the surrounding block. */
   if(!target){
     let goal = null;
-    if(game.player && game.player.alive && dist(c, game.player) > 150){
-      goal = {x:game.player.x, y:game.player.y};
-    } else {
-      let bestD = 520;
-      for(const dr of game.drops){
-        if(!dr.alive) continue;
-        const dd = dist(c, dr);
-        if(dd < bestD){ bestD = dd; goal = {x:dr.x, y:dr.y}; }
-      }
+    let bestD = 700;
+    for(const dr of game.drops){
+      if(!dr.alive) continue;
+      const dd = dist(c, dr);
+      if(dd < bestD){ bestD = dd; goal = {x:dr.x, y:dr.y}; }
     }
+    /* No loot worth grabbing: search. A clone keeps a wandering destination
+       of its own, prefers rooms nobody has finished yet, and moves on to a
+       fresh spot once it arrives or gives up. Without this the squad drifted
+       to one point and stood there for the whole breather. */
     if(!goal){
-      // last resort: drift toward the map centre-ish anchor so nobody idles
-      goal = {x:game.roundAnchor.x, y:game.roundAnchor.y};
+      c.wanderT = (c.wanderT||0) - dt;
+      /* progress watchdog: if we have not actually got closer for a while the
+         spot is unreachable, so drop it and pick another instead of grinding
+         into the same wall for the rest of the round */
+      const gd = c.wanderGoal ? Math.hypot(c.wanderGoal.x-c.x, c.wanderGoal.y-c.y) : Infinity;
+      if(!c.wanderGoal) c.wanderBest = Infinity;
+      if(gd < (c.wanderBest === undefined ? Infinity : c.wanderBest) - 20){
+        c.wanderBest = gd;
+        c.wanderStall = 0;
+      } else {
+        c.wanderStall = (c.wanderStall||0) + dt;
+      }
+      const reached = c.wanderGoal && gd < 70;
+      if(!c.wanderGoal || reached || c.wanderT <= 0 || (c.wanderStall||0) > 4.5){
+        c.wanderGoal = pickExploreSpot(c);
+        c.wanderT = 9 + Math.random()*7;
+        c.wanderBest = Infinity;
+        c.wanderStall = 0;
+        c.path = null; c.pathIdx = 0; c.pathGoal = null; c.navT = 0;
+      }
+      goal = c.wanderGoal;
+    } else {
+      c.wanderGoal = null;   // loot overrides wandering
+      c.wanderStall = 0; c.wanderBest = Infinity;
     }
     const steer = steerAround(c, goal.x, goal.y, dt, {repath:.7});
     const gl = Math.hypot(steer.x-c.x, steer.y-c.y) || 1;
@@ -4172,9 +4371,13 @@ function cloneMove(c,dt){
     c.path = null;
   }
 
-  // Keep a little breathing room from the player so bullets stay clear.
-  const pd = dist(c, game.player);
-  if(pd < 46 && pd > 0){ vx += (c.x-game.player.x)/pd*.6; vy += (c.y-game.player.y)/pd*.6; }
+  /* Personal space: a clone backs off from any squad member that is too
+     close, not just the player — same rule for everyone. */
+  for(const other of [game.player, ...game.clones]){
+    if(!other || other === c || !other.alive) continue;
+    const od = dist(c, other);
+    if(od < 52 && od > 0){ vx += (c.x-other.x)/od*.55; vy += (c.y-other.y)/od*.55; }
+  }
   if(d < 85 && c.dashCd <= 0 && Math.random() < dt*1.5){
     c.dashTime = .18;
     c.dashCd = stat(c).dashCooldown;
@@ -4335,6 +4538,7 @@ function beginRound(){
   game.pendingStage = 0;
   game.time = 30;
   game.spawnPaused = false;
+  restoreBuildingState();
   game.bossTimer = (game.stage % 5 === 0) ? 0.8 : -1;
   $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
   if(game.bossTimer > 0) notice('WARNING','ボスが接近している…');
@@ -5493,7 +5697,14 @@ const PIX = {
   'y': '#ffe9a3', 'Y': '#f2c85c',
   'c': '#a8e8ff', 'C': '#5fb8dd',
   'v': '#d5c4ff', 'V': '#9c85e0',
-  'o': '#ffb066', 'O': '#e07a3f'
+  'o': '#ffb066', 'O': '#e07a3f',
+  // --- extended palette for the detailed character art ---
+  'h': '#dcc78d', 'H': '#a9935c',   // wide-brim hat
+  's': '#f2c69c', 'S': '#c9926a',   // skin / shading
+  't': '#a44a38', 'T': '#6b2a21',   // deep enemy shading
+  'e': '#7fe07a', 'E': '#3f9b48',   // acid green
+  'u': '#b6a2e8', 'U': '#6d5bb0',   // phantom purple
+  'i': '#9fe8ff', 'I': '#4a9fc4'    // ice blue
 };
 
 function bakeSprite(rows, pal){
@@ -5522,414 +5733,741 @@ function bakeSprite(rows, pal){
   return c;
 }
 
-/* ---------- player / clone: armoured survivor, 3 poses ---------- */
 const SPR = {};
 
+/* ---------- player / clone: armoured survivor (3 poses) ---------- */
 SPR.playerIdle = [
-  '.....kkkkkk.....',
-  '....kppppppk....',
-  '...kpppppppppk..',
-  '...kpPpppppPpk..',
-  '...kpwkywykwpk..',
-  '...kpkwwwwwkpk..',
-  '...kppkkkkkppk..',
-  '....kpppppppk...',
-  '.....kGGGGGk....',
-  '....kGmmmmmGk...',
-  '...kGmmMMMmmGk..',
-  '...kGmMMMMMmGk..',
-  '....kGmmmmmGk...',
-  '.....kGGGGGk....',
-  '....kqqk.kqqk...',
-  '....kQQk.kQQk...'
+  '............................',
+  '............................',
+  '............................',
+  '.........kkkkkkkkkk.........',
+  '........kHhhhhhhhhHk........',
+  '........kHHHHHHHHHHk........',
+  '........kHhhhhhhhhHk........',
+  '........kHhhhhhhhhHk........',
+  '........kHhhhhhhhhHk........',
+  '......kkkHHHHHHHHHHkkk......',
+  '.....kHHHHHHHHHHHHHHHHk.....',
+  '....khhhhkkkkkkkkkkhhhhk....',
+  '.....kHHHHHHHHHHHHHHHHk.....',
+  '......kkkkkkkkkkkkkkkk......',
+  '........kSssssssssSk........',
+  '........kScccsscccSk........',
+  '........kniiinniiink........',
+  '........kSIiIssIiISk........',
+  '........kSssssssssSk........',
+  '.........kSSSSSSSSk.........',
+  '..........kSSSSSSk..........',
+  '.........kkkSSSSkkk.........',
+  '....kkkkkPPPPPPPPPPk........',
+  '...kbbbbPPPPPPPPPPPPk.......',
+  '...kbAAbqPPabPPPabPqqkk.....',
+  '...kbAAbAPPabPPPabPqpqqk....',
+  '...kbAAbqPPabAAAabPqpqqk....',
+  '...kbAAbqPPabAAAabPqpqqk....',
+  '...kbAAbAPPabbAbabPqpqqk....',
+  '...kbAAbqPPabPPPabPqpqqk....',
+  '...kbbbbqQQQQaaQQQQqpqqk....',
+  '....kssskkqQQkkqQQkksssk....',
+  '....kSSSkkqQQkkqQQkkSSSk....',
+  '.....kkk.kqQQkkqQQk.kkk.....',
+  '.........kqQQkkqQQk.........',
+  '.........kqQQkkqQQk.........',
+  '.........kqQQkkqQQk.........',
+  '.........kqQQkkqQQk.........',
+  '.........kKKKkkKKKk.........',
+  '.........kKKKkkKKKk.........',
+  '........knnnnknnnnk.........',
+  '........kKKKKkKKKKk.........',
+  '.........kkkk.kkkk..........',
+  '............................'
 ];
 SPR.playerWalk = [
-  '.....kkkkkk.....',
-  '....kppppppk....',
-  '...kpppppppppk..',
-  '...kpPpppppPpk..',
-  '...kpwkywykwpk..',
-  '...kpkwwwwwkpk..',
-  '...kppkkkkkppk..',
-  '....kpppppppk...',
-  '.....kGGGGGk....',
-  '....kGmmmmmGk...',
-  '...kGmmMMMmmGk..',
-  '...kGmMMMMMmGk..',
-  '....kGmmmmmGk...',
-  '.....kGGGGGk....',
-  '...kqqk...kqqk..',
-  '..kQQk.....kQQk.'
+  '............................',
+  '............................',
+  '............................',
+  '.........kkkkkkkkkk.........',
+  '........kHhhhhhhhhHk........',
+  '........kHHHHHHHHHHk........',
+  '........kHhhhhhhhhHk........',
+  '........kHhhhhhhhhHk........',
+  '........kHhhhhhhhhHk........',
+  '......kkkHHHHHHHHHHkkk......',
+  '.....kHHHHHHHHHHHHHHHHk.....',
+  '....khhhhkkkkkkkkkkhhhhk....',
+  '.....kHHHHHHHHHHHHHHHHk.....',
+  '......kkkkkkkkkkkkkkkk......',
+  '........kSssssssssSk........',
+  '........kScccsscccSk........',
+  '........kniiinniiink........',
+  '........kSIiIssIiISk........',
+  '........kSssssssssSk........',
+  '.........kSSSSSSSSk.........',
+  '..........kSSSSSSk..........',
+  '.........kkkSSSSkkk.........',
+  '....kkkkkPPPPPPPPPPk........',
+  '...kbbbbPPPPPPPPPPPPkkkk....',
+  '...kbAAbqPPabPPPabPqqpqqk...',
+  '...kbAAbAPPabPPPabPqqpqqk...',
+  '...kbAAbqPPabAAAabPqqpqqk...',
+  '...kbAAbqPPabAAAabPqqpqqk...',
+  '...kbAAbAPPabbAbabPqkpqqk...',
+  '...kbAAbqPPabPPPabPqkpqqk...',
+  '...kbbbbqQQQQaaQQQQqksssk...',
+  '...kSSSkkqQQkkkkqQQkkSSSk...',
+  '....kkk.kqQQk..kqQQk.kkk....',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kKKKk..kKKKk........',
+  '.......kkKKKk..kKKKkk.......',
+  '......knnnnnk..knnnnnk......',
+  '......kKKKKKk..kKKKKKk......',
+  '.......kkkkk....kkkkk.......',
+  '............................'
 ];
 SPR.playerAttack = [
-  '.....kkkkkk.....',
-  '....kppppppk....',
-  '...kpppppppppk..',
-  '...kpPpppppPpk..',
-  '...kpwkywykwpk..',
-  '...kpkwwwwwkpk..',
-  '...kppkkkkkppk..',
-  '....kpppppppk...',
-  '.....kGGGGGk....',
-  '..kkGmmmmmGkk...',
-  '.kmmmmMMMmmmmk..',
-  '..kkGMMMMMmGk...',
-  '....kGmmmmmGk...',
-  '.....kGGGGGk....',
-  '....kqqk.kqqk...',
-  '....kQQk.kQQk...'
+  '............................',
+  '............................',
+  '............................',
+  '.........kkkkkkkkkk.........',
+  '........kHhhhhhhhhHk........',
+  '........kHHHHHHHHHHk........',
+  '........kHhhhhhhhhHk........',
+  '........kHhhhhhhhhHk........',
+  '........kHhhhhhhhhHk........',
+  '......kkkHHHHHHHHHHkkk......',
+  '.....kHHHHHHHHHHHHHHHHk.....',
+  '....khhhhkkkkkkkkkkhhhhk....',
+  '.....kHHHHHHHHHHHHHHHHk.....',
+  '......kkkkkkkkkkkkkkkk......',
+  '........kSssssssssSk........',
+  '........kScccsscccSk........',
+  '........kniiinniiink........',
+  '........kSIiIssIiISk........',
+  '........kSssssssssSk........',
+  '.........kSSSSSSSSk.........',
+  '..........kSSSSSSk..........',
+  '.........kkkSSSSkkk.........',
+  '....kkkkkPPPPPPPPPPk........',
+  '...kbbbbPPPPPPPPPPPPk.......',
+  '..kpbAAbqPPabPPPabPqqkkk....',
+  '..kpbAAbAPPabPPPabPqqpqqkkk.',
+  '..kpbAAbqPPabAAAabPqqpMMMMMk',
+  '..kpbAAbqPPabAAAabPqqpMMMmmy',
+  '..ksbAAbAPPabbAbabPqkpqqkkkk',
+  '..kSbAAbqPPabPPPabPqksssk...',
+  '...kbbbbqQQQQaaQQQQqkSSSk...',
+  '....kkkkkqQQkkkkqQQk.kkk....',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kqQQk..kqQQk........',
+  '........kKKKk..kKKKk........',
+  '........kKKKk..kKKKk........',
+  '.......knnnnk.knnnnk........',
+  '.......kKKKKk.kKKKKk........',
+  '........kkkk...kkkk.........',
+  '............................'
 ];
-
 /* ---------- grunt: squat jelly with legs ---------- */
 SPR.gruntIdle = [
-  '......kkkk......',
-  '....kkrrrrkk....',
-  '...krrrrrrrrk...',
-  '..krrwrrrrwrrk..',
-  '..krwwkrrkwwrk..',
-  '..krwkkrrkkwrk..',
-  '..krrrrrrrrrrk..',
-  '..krRsrrrrRsrk..',
-  '...krrSSSSrrk...',
-  '....kkrrrrkk....',
-  '.....kRkkRk.....',
-  '.....kSk.kSk....'
+  '........................',
+  '........................',
+  '........................',
+  '......kkkkkkkkkkkk......',
+  '....kkRRRRRRRRRRRRkk....',
+  '...krrrrrrrrrrrrrrrrk...',
+  '..krrrrrrrrrrrrrrrrrrk..',
+  '..krrrwwwwrrrwwwwrrrrk..',
+  '..krrrwckwrrrwckwrrrrk..',
+  '..krrrwkkwooowkkwrrrrk..',
+  '..krrrwwwwooowwwwrrrrk..',
+  '..krrrTTTTrrrTTTTrrrrk..',
+  '..krrrrrrTttttTrrrrrrk..',
+  '..krrrrrrrrrrrrrrrrrrk..',
+  '...kRRRRRRRRRRRRRRRRk...',
+  '....kkttttttttttttkk....',
+  '....kTTTTTkkkkTTTTTk....',
+  '....kTTTTTk..kTTTTTk....',
+  '.....kTTTTk...kTTTTk....',
+  '......kkkk.....kkkk.....',
+  '........................',
+  '........................'
 ];
 SPR.gruntWalk = [
-  '......kkkk......',
-  '....kkrrrrkk....',
-  '...krrrrrrrrk...',
-  '..krrwrrrrwrrk..',
-  '..krwwkrrkwwrk..',
-  '..krwkkrrkkwrk..',
-  '..krrrrrrrrrrk..',
-  '..krRsrrrrRsrk..',
-  '...krrSSSSrrk...',
-  '....kkrrrrkk....',
-  '....kRk..kRk....',
-  '...kSk....kSk...'
+  '........................',
+  '........................',
+  '......kkkkkkkkkkkk......',
+  '....kkRRRRRRRRRRRRkk....',
+  '...krrrrrrrrrrrrrrrrk...',
+  '..krrrrrrrrrrrrrrrrrrk..',
+  '..krrrwwwwrrrwwwwrrrrk..',
+  '..krrrwckwrrrwckwrrrrk..',
+  '..krrrwkkwooowkkwrrrrk..',
+  '..krrrwwwwooowwwwrrrrk..',
+  '..krrrTTTTrrrTTTTrrrrk..',
+  '..krrrrrrTttttTrrrrrrk..',
+  '..krrrrrrrrrrrrrrrrrrk..',
+  '...kRRRRRRRRRRRRRRRRk...',
+  '....kkttttttttttttkk....',
+  '...kTTTTTkkkkkkTTTTTk...',
+  '...kTTTTTk....kTTTTTk...',
+  '....kTTTTk.....kTTTTk...',
+  '.....kkkk.......kkkk....',
+  '........................',
+  '........................',
+  '........................'
 ];
-
 /* ---------- runner: lean and fast ---------- */
 SPR.runnerIdle = [
-  '.....kkkkk......',
-  '....krrrrrk.....',
-  '...krwrrwrrk....',
-  '...krkrrkrrk....',
-  '...krrrrrrrk....',
-  '....krsssrk.....',
-  '.....kkkkk......',
-  '....kRk.kRk.....',
-  '...kSk...kSk....',
-  '..kSk.....kSk...'
+  '......................',
+  '......................',
+  '.......kkkkkkkk.......',
+  '......kRRRRRRRRk......',
+  '.....krrrrrrrrrrk.....',
+  '.....krrwwwwwwrrk.....',
+  '.....krrwckkkwrrk.....',
+  '.....krrwwwwwwrrk.....',
+  '.....krrTTTTTTrrk.....',
+  '.....krrrrrrrrrrk.....',
+  '......kRRRRRRRRk......',
+  '.....kkRRRRRRRRkk.....',
+  '....ktkRRRRRRRRktk....',
+  '...ktkkRRRRRRRRkktk...',
+  '....k.kRRRRRRRRk.k....',
+  '......kkttttttkk......',
+  '.....kTTTkkkkTTTk.....',
+  '....kTTkk....kkTTk....',
+  '...kTTk........kTTk...',
+  '....kk..........kk....',
+  '......................',
+  '......................'
 ];
 SPR.runnerWalk = [
-  '.....kkkkk......',
-  '....krrrrrk.....',
-  '...krwrrwrrk....',
-  '...krkrrkrrk....',
-  '...krrrrrrrk....',
-  '....krsssrk.....',
-  '.....kkkkk......',
-  '...kRk...kRk....',
-  '..kSk......kSk..',
-  '.kSk........kSk.'
+  '......................',
+  '......................',
+  '.......kkkkkkkk.......',
+  '......kRRRRRRRRk......',
+  '.....krrrrrrrrrrk.....',
+  '.....krrwwwwwwrrk.....',
+  '.....krrwckkkwrrk.....',
+  '.....krrwwwwwwrrk.....',
+  '.....krrTTTTTTrrk.....',
+  '.....krrrrrrrrrrk.....',
+  '......kRRRRRRRRk......',
+  '.....kkRRRRRRRRkk.....',
+  '....ktkRRRRRRRRktk....',
+  '...ktkkRRRRRRRRkktk...',
+  '....k.kRRRRRRRRk.k....',
+  '......kkttttttkk......',
+  '....kkTTTkkkkTTTkk....',
+  '...kTTkkk....kkkTTk...',
+  '..kTTk..........kTTk..',
+  '...kk............kk...',
+  '......................',
+  '......................'
 ];
-
 /* ---------- brute: heavy, plated ---------- */
 SPR.bruteIdle = [
-  '.......kkkkkk.......',
-  '.....kkrrrrrrkk.....',
-  '....krrrrrrrrrrk....',
-  '...krrwrrrrrrwrrk...',
-  '...krrwwkrrkwwrrk...',
-  '...krrwkkrrkkwrrk...',
-  '...krrrrrrrrrrrrk...',
-  '..kkrrRssrrssRrrkk..',
-  '.kMMkrrrSSSSrrrkMMk.',
-  '.kmmkrrrrrrrrrrkmmk.',
-  '..kkkrrrrrrrrrrkkk..',
-  '....kkrrrrrrrrkk....',
-  '.....kRRkkkkRRk.....',
-  '.....kSSk..kSSk.....',
-  '....kSSk....kSSk....'
+  '..............................',
+  '..............................',
+  '............kkkkkk............',
+  '...........kRRRRRRk...........',
+  '..........kRRRRRRRRk..........',
+  '..........kRRRRRRRRk..........',
+  '..........kRwwwwwwRk..........',
+  '..kkkkkkkkkRwkkwkwRkkkkkkkkk..',
+  '.kMMMMMMMMkRwwwwwwRkMMMMMMMMk.',
+  'kmmmmmmmmmmRRRRRRRRmmmmmmmmmmk',
+  'kmmmmmmmmmmRTTTTTTRmmmmmmmmmmk',
+  'kmmmWmmRRWRRRRRRRRRRWRRmmWmmmk',
+  'kmmmmmrrrrrrrrrrrrrrrrrrmmmmmk',
+  'kmMMMMrrrrrrrrrrrrrrrrrrMMMMmk',
+  'kRRRRRRrrrrrrrrrrrrrrrrRRRRRRk',
+  'kRRRRRRrrrrrrrrrrrrrrrrRRRRRRk',
+  'kRRRRRRrrttttttttttttrrRRRRRRk',
+  'kRRRRRRrrrrrrrrrrrrrrrrRRRRRRk',
+  'kRRRRRRrrrrrrrrrrrrrrrrRRRRRRk',
+  '.kTTTTrrrrTTTTTTTTTTrrrrTTTTk.',
+  '..kkkkrrrrrrrrrrrrrrrrrrkkkk..',
+  '.....krrrrrrrrrrrrrrrrrrk.....',
+  '......kkttttttttttttttkk......',
+  '........ktttttkktttttk........',
+  '........ktttttkktttttk........',
+  '........ktttttkktttttk........',
+  '.......kTTTTTTTTTTTTTTk.......',
+  '.......kTTTTTTTTTTTTTTk.......',
+  '.......kTTTTTTTTTTTTTTk.......',
+  '........kkkkkkkkkkkkkk........'
 ];
-
 /* ---------- spitter: hunched, acid sac on its back ---------- */
 SPR.spitterIdle = [
-  '...kkkkkkkk...',
-  '..krrrrrrrrk..',
-  '.krrrrrrrrrrk.',
-  '.krwwkrrkwwrk.',
-  '.krwkkrrkkwrk.',
-  'krrrrrrrrrrrrk',
-  'krrRRssssRRrrk',
-  '.krRsSSSSsRrk.',
-  '..kkrrrrrrkk..',
-  '...kvVvvVvk...',
-  '..kvVcyycVvk..',
-  '...kvvvvvvk...',
-  '....kRkkRk....',
-  '....kSk.kSk...'
+  '..........................',
+  '............kkkkkkkk......',
+  '...........kVVVVVVVVk.....',
+  '..........kvvvvvvvvvvk....',
+  '..........kvvvvvvvvvvk....',
+  '......k...kvvveeeevvvk....',
+  '.....krk..kvvvryeevvvk....',
+  '......k...kvvvkeeevvvk....',
+  '....kkwkkkkvvvwvvvvvvk....',
+  '...kRRRRRRRRRRRRvvvvvk....',
+  '..krrrrrrrrrrrrrrvvvvk....',
+  '..krrrrrrrrrrrrrrVVVk.....',
+  '..krrrrrrrrrrrrrrkkk......',
+  '..krrrrrrrrrrrrrrk........',
+  '..krrroooooooorrrk........',
+  '..krrrrrrrrrrrrrrk........',
+  '..krrrrrTTTTTTrrrk........',
+  '..krrrrrrerrrrrrrk........',
+  '..krrrrrrrrrerrrrk........',
+  '...kttttttttttttk.........',
+  '....kttttkkkkttttk........',
+  '....kttttk..kttttk........',
+  '....kttttk..kttttk........',
+  '.....kkkk....kkkk.........'
 ];
 /* ---------- bomber: swollen, lit fuse ---------- */
 SPR.bomberIdle = [
-  '.......yy.....',
-  '......yYy.....',
-  '...kkkkkkkk...',
-  '..koooooooook.',
-  '.kooooooooooook',
-  '.kowokoooowok..',
-  '.kowkkoookkwok.',
-  'kooooooooooook.',
-  'kooOoooooooOok.',
-  '.koooooooooook.',
-  '..kOOkkkkOOOk.',
-  '...kkRRRRkk...',
-  '...kRk..kRk...',
-  '..kSk....kSk..'
+  '......................',
+  '...........k..........',
+  '..........kyk.........',
+  '...........kYk........',
+  '..........kYk.........',
+  '......kkkkkkYkkk......',
+  '....kkOOOOOOOOOOkk....',
+  '...kooooooooooooook...',
+  '...kooTTToooTTToook...',
+  '...koYwwwooowwwoYok...',
+  '...koowkwooowkwoook...',
+  '...kOOOOOOOOOOOOOOk...',
+  '...kooooooooooooook...',
+  '...kooooooooooooook...',
+  '...koYobboooooooYok...',
+  '...kooooobboooooook...',
+  '...koOOOoooobbboook...',
+  '....kOOOOOObOOOOOk....',
+  '.....kkbbbbbbbbkk.....',
+  '.....kkkkkkkkkkk......',
+  '....kTTTTk.kTTTTk.....',
+  '....kTTTTk.kTTTTk.....',
+  '....kTTTTk.kTTTTk.....',
+  '.....kkkk...kkkk......'
 ];
 SPR.bomberWalk = [
-  '.......yy.....',
-  '......yYy.....',
-  '...kkkkkkkk...',
-  '..koooooooook.',
-  '.kooooooooooook',
-  '.kowokoooowok..',
-  '.kowkkoookkwok.',
-  'kooooooooooook.',
-  'kooOoooooooOok.',
-  '.koooooooooook.',
-  '..kOOkkkkOOOk.',
-  '...kkRRRRkk...',
-  '..kRk......kRk',
-  '.kSk........kS'
+  '......................',
+  '...........k..........',
+  '..........kyk.........',
+  '...........kYk........',
+  '..........kYk.........',
+  '......kkkkkkYkkk......',
+  '....kkOOOOOOOOOOkk....',
+  '...kooooooooooooook...',
+  '...kooTTToooTTToook...',
+  '...koYwwwooowwwoYok...',
+  '...koowkwooowkwoook...',
+  '...kOOOOOOOOOOOOOOk...',
+  '...kooooooooooooook...',
+  '...kooooooooooooook...',
+  '...koYobboooooooYok...',
+  '...kooooobboooooook...',
+  '...koOOOoooobbboook...',
+  '....kOOOOOObOOOOOk....',
+  '.....kkbbbbbbbbkk.....',
+  '.....kkkkkkkkkkk......',
+  '....kTTTTk.kTTTTk.....',
+  '....kTTTTk.kTTTTk.....',
+  '....kTTTTk.kTTTTk.....',
+  '.....kkkk...kkkk......'
 ];
 /* ---------- shielder: wall of plate with a broad shield ---------- */
 SPR.shielderIdle = [
-  '....kkkkkkkk....',
-  '..kkrrrrrrrrkk..',
-  '.krrrrrrrrrrrrk.',
-  '.krwrrrrrrrwrrk.',
-  '.krwkrrrrkwrrrk.',
-  '.krrrrrrrrrrrrk.',
-  'kmmmmmmmmmmmmmmk',
-  'kmMMMmmmmmMMMmmk',
-  'kmMcMMMMMMMMcMmk',
-  'kmMcMMMMMMMMcMmk',
-  'kmMMMmmmmmMMMmmk',
-  'kmmmmmmmmmmmmmmk',
-  '.kkrrrrrrrrrrkk.',
-  '..kRRkkkkkkRRk..',
-  '..kSSk....kSSk..'
+  '......kkkkkkkkkkkk......',
+  '.....kRRRRRRRRRRRRk.....',
+  '....krrrrrrrrrrrrrrk....',
+  '....krrrrrrrrrrrrrrk....',
+  '....krrwkkwwwwkkwrrk....',
+  '....krrwkkwwwwkkwrrk....',
+  '....krrrrrrrrrrrrrrk....',
+  '....kRRRRRRRRRRRRRRk....',
+  '.....kkkTTTTTTTTkkk.....',
+  '..kkkrrrrrrrrrrrrrrkkk..',
+  '.kmMMMMMMMMMMMMMMMMMMmk.',
+  'kRRmmmmmmmmmmmmmmmmmmRRk',
+  'kRRmmmmmmmAAAAmmmmmmmRRk',
+  'kRRmWmmmmWmYmmWmmmmWmRRk',
+  'kRRmmmmmmmmmmmmmmmmmmRRk',
+  'kRRmmmmmmmmmmmmmmmmmmRRk',
+  '.kmMMMMMMMMMMMMMMMMMMmk.',
+  '..kkkkttttttttttttkkkk..',
+  '......kTTTTkkTTTTk......',
+  '......kTTTTkkTTTTk......',
+  '......kTTTTkkTTTTk......',
+  '......kKKKKkkKKKKk......',
+  '.......kkkk..kkkk.......',
+  '........................',
+  '........................',
+  '........................'
 ];
-/* ---------- splitter: gelatinous mass with a visible core ---------- */
+/* ---------- splitter: cocoon about to tear in two ---------- */
 SPR.splitterIdle = [
-  '.....kkkkkk.....',
-  '...kkvvVVvvkk...',
-  '..kvvVVVVVVvvk..',
-  '.kvvVVyyyyVVvvk.',
-  '.kvVVywwwwyVVvk.',
-  'kvvVVywwwwyVVvvk',
-  'kvVVVVyyyyVVVVvk',
-  'kvvVVVVVVVVVVvvk',
-  '.kvVVVVVVVVVVvk.',
-  '.kvvVVVVVVVVvvk.',
-  '..kvvvVVVVvvvk..',
-  '...kkvvvvvvkk...',
-  '.....kRkkRk.....',
-  '.....kSk.kSk....'
+  '........................',
+  '.........kkkkkk.........',
+  '.......kkVVVVVVkk.......',
+  '......kvvvvvvvvvvk......',
+  '......kvvvvvvvvvvk......',
+  '......kvvvvvvvvvvk......',
+  '......kvvvvvvvvvvk......',
+  '.....kvvvvvvvvvvvvk.....',
+  '....kvvvwvvvvvvwvvvk....',
+  '....kvvvkvvvvvvkvvvk....',
+  '....kvvVVVVVVVVVVvvk....',
+  '....kvvvvyyyyyyvvvvk....',
+  '....kvvvuyYwYYyuvvvk....',
+  '....kvvvvyYYYYyvvvvk....',
+  '....kvvvvyyyyyyvvvvk....',
+  '....kvvvvvvvvvvvvvvk....',
+  '....kvvvvvvvvvvvvvvk....',
+  '.....kVVVVVVVVVVVVk.....',
+  '.....kUUUkkkkkkUUUk.....',
+  '.....kUUUk....kUUUk.....',
+  '.....kUUUk....kUUUk.....',
+  '.....kUUUk....kUUUk.....',
+  '......kkk......kkk......',
+  '........................'
 ];
-/* ---------- healer: robed figure with a lantern ---------- */
+/* ---------- healer: robed support, glowing cross ---------- */
 SPR.healerIdle = [
-  '......kkkk......',
-  '.....kggggk.....',
-  '....kgwwwwgk....',
-  '....kgwkkwgk....',
-  '....kgwwwwgk....',
-  '.....kggggk.....',
-  '....kggggggk....',
-  '...kggGGGGggk...',
-  '..kggGGyyGGggk..',
-  '..kggGGyyGGggk..',
-  '..kggGGGGGGggk..',
-  '..kggggggggggk..',
-  '...kgggk.kgggk..',
-  '...kGGGk.kGGGk..'
+  '......................',
+  '.......kkkkkkkk.......',
+  '......kIIIIIIIIk......',
+  '.....kiiiiiiiiiik.....',
+  '.....kiinnnnnniik.....',
+  '.....kiincnncniik.....',
+  '.....kiinnnnnniik.....',
+  '.....kiinnnnnniik.....',
+  '.....kkIIIIIIIIkk.....',
+  '....kiiiiiiiiiiiik....',
+  '...kiiiiiiiiiiiiiik...',
+  '..kIIiiiiiyyiiiiiIIk..',
+  '..kIIiiiiiwwiiiiiIIk..',
+  '..kIIiiiyywwyyiiiIIk..',
+  '..kIIiiiiiyyiiiiiIIk..',
+  '..kIIIIIIIyyIIIIIIIk..',
+  '..kIIiiiiiyyiiiiiIIk..',
+  '..kyiiiiiiyyiiiiiiyk..',
+  '...kiiiiiiiiiiiiiik...',
+  '...kiiiiiiiiiiiiiik...',
+  '....kIIIIIIIIIIIIk....',
+  '.....kkIIIIIIIIkk.....',
+  '.......kkkkkkkk.......',
+  '......keeeeeeeek......',
+  '.......kEEEEEEk.......',
+  '........kkkkkk........'
 ];
-/* ---------- stalker: tall, thin, long claws ---------- */
+/* ---------- stalker: tall thin horror with claws ---------- */
 SPR.stalkerIdle = [
-  '.....kkkk.....',
-  '....kvvvvk....',
-  '...kvwvvwvk...',
-  '...kvkvvkvk...',
-  '...kvvvvvvk...',
-  '....kvssvk....',
-  '.....kvvk.....',
-  '...kkvVVvkk...',
-  '..kvkvVVvkvk..',
-  '..kvkvvvvkvk..',
-  '...k.kvvk.k...',
-  '.....kvvk.....',
-  '....kVkkVk....',
-  '...kVk..kVk...',
-  '..kSk....kSk..'
+  '.......kkkkkk.......',
+  '......kvvvvvvk......',
+  '.....kvvvvvvvvk.....',
+  '.....kvcwvvcwvk.....',
+  '.....kvwwvvwwvk.....',
+  '.....kvvvvvvvvk.....',
+  '.....kvvVVVVvvk.....',
+  '......kVVVVVVk......',
+  '....kk.kkVVkk.kk....',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkVVVVVVkvvk...',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkUUUUUUkvvk...',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkUUUUUUkvvk...',
+  '...kvvkvvkkvvkvvk...',
+  '...kwkkvvkkvvkkwk...',
+  '..kwk.kvvkkvvk.kwk..',
+  '...k..kvvkkvvk..k...',
+  '......kvvkkvvk......',
+  '......kvvkkvvk......',
+  '......kVVkkVVk......',
+  '......kkk..kkk......',
+  '.....kVVVkkVVVk.....',
+  '....kwwwwkkwwwwk....',
+  '.....kkkk..kkkk.....',
+  '....................'
 ];
 SPR.stalkerWalk = [
-  '.....kkkk.....',
-  '....kvvvvk....',
-  '...kvwvvwvk...',
-  '...kvkvvkvk...',
-  '...kvvvvvvk...',
-  '....kvssvk....',
-  '.....kvvk.....',
-  '...kkvVVvkk...',
-  '..kvkvVVvkvk..',
-  '.kvk.kvvk.kvk.',
-  '.k...kvvk...k.',
-  '.....kvvk.....',
-  '...kVk..kVk...',
-  '..kSk......kSk',
-  '.kSk........kS'
+  '.......kkkkkk.......',
+  '......kvvvvvvk......',
+  '.....kvvvvvvvvk.....',
+  '.....kvcwvvcwvk.....',
+  '.....kvwwvvwwvk.....',
+  '.....kvvvvvvvvk.....',
+  '.....kvvVVVVvvk.....',
+  '......kVVVVVVk......',
+  '....kk.kkVVkk.kk....',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkVVVVVVkvvk...',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkUUUUUUkvvk...',
+  '...kvvkvvvvvvkvvk...',
+  '...kvvkUUUUUUkvvk...',
+  '...kvvkvvkkvvkvvk...',
+  '...kwkkvvkkvvkkwk...',
+  '..kwk.kvvkkvvk.kwk..',
+  '...k..kvvkkvvk..k...',
+  '......kvvkkvvk......',
+  '......kvvkkvvk......',
+  '.....kVVk..kVVk.....',
+  '.....kkk....kkk.....',
+  '....kVVVk..kVVVk....',
+  '...kwwwwk..kwwwwk...',
+  '....kkkk....kkkk....',
+  '....................'
 ];
-/* ---------- colossus: huge armoured walker ---------- */
+/* ---------- colossus: huge armoured frame ---------- */
 SPR.colossusIdle = [
-  '.....kkkkkkkkkk.....',
-  '...kkRRRRRRRRRRkk...',
-  '..kRRRRRRRRRRRRRRk..',
-  '.kRRkkkkkkkkkkkkRRk.',
-  '.kRkSSSSSSSSSSSSkRk.',
-  '.kRkSrrrrrrrrrrSSkRk',
-  'kRRkSrrwwkkwwrrSSkRRk',
-  'kRkSrrwwkkkkwwrrSkRk',
-  'kRkSrwkkyyyykwrSkRk.',
-  'kRRkSrrwwkkkkwwrrSkRR',
-  '.kRkSrrrrrrrrrrSSkRk.',
-  '.kRkSSSSSSSSSSSSkRk.',
-  '.kRRkkkkkkkkkkkkRRk.',
-  '..kRRRRRRRRRRRRRRk..',
-  '...kkRRRRRRRRRRkk...',
-  '....kkk.kkkk.kkk....',
-  '...kMMMk....kMMMk...',
-  '...kMmMk....kMmMk...',
-  '..kMMMMMk..kMMMMMk..'
+  '....................................',
+  '....................................',
+  '....................................',
+  '...............kkkkkk...............',
+  '..............kRRRRRRk..............',
+  '.............kRRRRRRRRk.............',
+  '.............kRRRRRRRRk.............',
+  '.............kRRRRRRRRk.............',
+  '.............kRwwwwwwRk.............',
+  '.............kRwkkwwkRk.............',
+  '...kkkkkk....kRwwwwwwRk......kkkkkk.',
+  '..kmmmmmmk...kRTTTTTTRk.....kmmmmmmk',
+  '.kMMMMMMMMkkkkmRRRRRRmkkkkkkMMMMMMMM',
+  '.kMMWMMWMRRRRRRRRRRRRRRRRRRkMMWMMWMM',
+  '.kMMMMMMtrrrrrrrrrrrrrrrrrrtMMMMMMMM',
+  '.kMMMMMMtrrrrrrrrrrrrrrrrrrtMMMMMMMM',
+  '.kMMMMMMtrrttttttttttttttrrtMMMMMMMM',
+  '.kMMMMMMtrrrrrrrrrrrrrrrrrrtMMMMMMMM',
+  '..kRrrrrtrrrrrrOOOOOOrrrrrrtkRrrrrrk',
+  '..kRrrrrtrrrTTTOyyyyOTTTrrrtkRrrrrrk',
+  '..kRrrrrtrrrrrrOywyyOrrrrrrtkRrrrrrk',
+  '..kRrrrrtrrrrrrOyyyyOrrrrrrtkRrrrrrk',
+  '..kRrrrrtrrrrrrOyyyyOrrrrrrtkRrrrrrk',
+  '..kRrrrrtrrttttOOOOOOttttrrtkRrrrrrk',
+  '.kRRRRRRtrrrrrrrrrrrrrrrrrrtRRRRRRRR',
+  '.kRrrrrrtrrrrrrrrrrrrrrrrrrtRrrrrrrR',
+  '.kRttttttrrrrrrrrrrrrrrrrrrtRttttttR',
+  '.kRrrrrrTttttttttttttttttttTRrrrrrrR',
+  '.kRrrrrrTtttttttTkkTtttttttTRrrrrrrR',
+  '.kRrrrrrTTTTTTTTTkkTTTTTTTTTRrrrrrrR',
+  '.kRRRRRRTtttttttTkkTtttttttTRRRRRRRR',
+  '.krrrrrrTtttttttTkkTtttttttTrrrrrrrr',
+  '.kTTTTTTTtttttttTkkTtttttttTTTTTTTTT',
+  '.kTTTTTTTtttttttTkkTtttttttTTTTTTTTT',
+  '.kTTTTTKKKKKKKKKKKKKKKKKKKKKKTTTTTTT',
+  '..kkkkkTTTTTTTTTTTTTTTTTTTTTTkkkkkkk',
+  '......kTTTTTTTTTTTTTTTTTTTTTTk......',
+  '......kTTTTTTTTTTTTTTTTTTTTTTk......',
+  '.......kkkkkkkkkkkkkkkkkkkkkk.......',
+  '....................................'
 ];
-
-/* ---------- skeleton: risen minion ---------- */
+/* ---------- boss: horned warden ---------- */
+SPR.bossIdle = [
+  '......................k.......................',
+  '.....................kyk......................',
+  '.......k.............kYYk..........k..........',
+  '......kWkkk.......kkkkYYkkkk......kWk.........',
+  '.......kMMMkkk...krrrrYYrrrrk...kkMMMk........',
+  '.......kMMMmmmk.kRRRRRYYRRRRRk.kmmMMMk........',
+  '.......kMMMmmmkkRRRRRRRRRRRRRRkkmmMMMk........',
+  '........kkmmmmMMRRRRRRRRRRRRRRMMmmmmk.........',
+  '..........kkmmmmRRRRRRRRRRRRRRmmmmkk..........',
+  '...........kMMMMRRRRRRRRRRRRRRMMMMk...........',
+  '............kkkkRRwwwwwwwwwwRRkkkk............',
+  '....kkkkkkkkkk.kRRwkkwwwwkkwRRk....kkkkkkkkkk.',
+  '...kMMMMMMMMMMkkRRwkkwwwwkkwRRk...kMMMMMMMMMMk',
+  '..kmmmmmmmmmmmmkRRwwwwwwwwwwRRk..kmmmmmmmmmmmm',
+  '..kmmmmmmmmmmmmkRRTTTTTTTTTTRRk..kmmmmmmmmmmmm',
+  '..kmmmWmmmmWmmmkRRRRRRRRRRRRRRkkkkmmmWmmmmWmmm',
+  '..kmmnnnnRRRRRRRRRRRRRRRRRRRRRRRRRRRRnnnnnnnmm',
+  '..kmmmmmtrrrrrrrRRRRRRRRRRRRRRrrrrrrrtmmmmmmmm',
+  '..kmmmmmtrrrrrrrrrrrrrrrrrrrrrrrrrrrrtmmmmmmmm',
+  '..kmmmmmtrrrrrrrrrrrrrrrrrrrrrrrrrrrrtmmmmmmmm',
+  '..kmMMMMtrrttttttttOOOOOOOOttttttttrrtMMMMMMMm',
+  '...kRrrrtrrrrrrrrrrOyyyyyyOrrrrrrrrrrtrrrrrkkk',
+  '...kRrrrtrrrrrrrrrrOywwwwyOrrrrrrrrrrtrrrrrk..',
+  '...kRrrrtrrrrrrrrrrOywwwwyOrrrrrrrrrrtrrrrrk..',
+  '...kRrrrtrrrrrrrrrrOywwwwyOrrrrrrrrrrtrrrrrk..',
+  '...kRrrrtrrrrrrrrrrOywwwwyOrrrrrrrrrrtrrrrrk..',
+  '...kRrrrtrrTTTTTTTTOyyyyyyOTTTTTTTTrrtrrrrrk..',
+  '..kRRRRRtrrrrrrrrrrOOOOOOOOrrrrrrrrrrtRRRRRRk.',
+  '..kRrrrrtrrrrrrrrrrrrrrrrrrrrrrrrrrrrtrrrrrRk.',
+  '..kRtttttrrrttttttttttttttttttttttrrrttttttRk.',
+  '..kRrrrrtrrrrrrrrrrrrrrrrrrrrrrrrrrrrtrrrrrRk.',
+  '..kRrrrrtrttttttttttttttttttttttttttrtrrrrrRk.',
+  '..kRrrrrrTttttttttttTkkkkTttttttttttTrrrrrrRk.',
+  '..krrrrrrTttttttttttTk..kTttttttttttTrrrrrrrk.',
+  '..kTTTTTTTtTTTTTTTTtTk..kTtTTTTTTTTtTTTTTTTTk.',
+  '..kTMTMTMTttttttttttTk..kTttttttttttTTMTMTMTk.',
+  '..kTTTTTTTttttttttttTk..kTttttttttttTTTTTTTTk.',
+  '..kTTTTTTTttttttttttTk..kTttttttttttTTTTTTTTk.',
+  '...kkkkkKKKKKKKKKKKKKKkkKKKKKKKKKKKKKKkkkkkk..',
+  '.......kTTTTTTTTTTTTTTkkTTTTTTTTTTTTTTk.......',
+  '.......kTTTnTTTTTnTTTTkkTTTnTTTTTnTTTTk.......',
+  '.......kTTTTTTTTTTTTTTkkTTTTTTTTTTTTTTk.......',
+  '........kkkkkkkkkkkkkk..kkkkkkkkkkkkkk........',
+  '..............................................'
+];
+/* ---------- skeleton ---------- */
 SPR.skeletonIdle = [
-  '....kkkkkk....',
-  '...kwwwwwwk...',
-  '...kwkkkkwk...',
-  '...kwwwwwwk...',
-  '...kwkwwkwk...',
-  '....kwwwwk....',
-  '.....kwwk.....',
-  '..kkkwwwwkkk..',
-  '.kwwkwwwwkwwk.',
-  '.kwk.kwwk.kwk.',
-  '..k..kwwk..k..',
-  '.....kwwk.....',
-  '....kwwwwk....',
-  '...kwwk.kwwk..',
-  '..kwwk...kwwk.'
-];
-
-/* ---------- totem: carved healing post with a glowing eye ---------- */
-SPR.totemIdle = [
-  '....kkkkkk....',
-  '...kyyyyyyk...',
-  '..kyyccyyyyk..',
-  '..kyccccyyyk..',
-  '..kyyccccyyk..',
-  '...kyyyyyyk...',
-  '....kmmmmk....',
-  '....kmmmmk....',
-  '...km.kk.mk...',
-  '...km.kv.mk...',
-  '....kmmmmk....',
-  '....kmmmmk....',
-  '...kmmmmmmk...',
-  '..kMMMMMMMMk..',
-  '..kKKKKKKKKk..'
+  '.....kkkkkkkkkkkk.....',
+  '....kWWWWWWWWWWWWk....',
+  '...kwwwwwwwwwwwwwwk...',
+  '..kWwwwwwwwwwwwwwwWk..',
+  '...kwWWWWWWWWWWWWwk...',
+  '...kwwKKKKwwKKKKwwk...',
+  '...kwwKeeKwwKeeKwwk...',
+  '...kwwKEKKKKKKEKwwk...',
+  '...kwwKKKKKKKKKKwwk...',
+  '....kWWWWWWWWWWWWk....',
+  '.....kwKwKwKwKwwk.....',
+  '......kWWWWWWWWk......',
+  '.......kwwwwwwk.......',
+  '........kWWWWk........',
+  '.........kWWk.........',
+  '......kkkkWWkkkk......',
+  '....kkwwwwwwwwwwkk....',
+  '...kWwwwwwwwwwwwwWk...',
+  '...kWwkkkkwwkkkkwWk...',
+  '...kWwwwwwwwwwwwwWk...',
+  '...kWwkkkkwwkkkkwWk...',
+  '...kWwwwwwwwwwwwwWk...',
+  '...kWwkkkkwwkkkkwWk...',
+  '....kwwWwwwwwwWwwk....',
+  '...kWWWWWWWWWWWWWWk...',
+  '...kwwwwwwwwwwwwwwk...',
+  '....kwwwwkkkkwwwwk....',
+  '....kwwwwk..kwwwwk....'
 ];
 /* ---------- cage: a barred pen holding a captured clone ---------- */
 SPR.cageIdle = [
-  '.kkkkkkkkkkkk.',
-  '.kmmmmmmmmmmk.',
-  '.kkkkkkkkkkkk.',
-  '.kk.kk.kk.kk.k',
-  '.kk.kk.kk.kk.k',
-  '.kk.kk.kk.kk.k',
-  '.kk.kk.kk.kk.k',
-  '.kk.kk.kk.kk.k',
-  '.kk.kk.kk.kk.k',
-  '.kk.kk.kk.kk.k',
-  '.kmmmmmmmmmmk.',
-  '.kkkkkkkkkkkk.',
-  '..kMM....MMk..',
-  '..kKK....KKk..'
+  '........................',
+  '..kkkkkkkkkkkkkkkkkkkk..',
+  '.knnnnnnnnnnnnnnnnnnnnk.',
+  '.kMMMMMMMMMMMMMMMMMMMMk.',
+  '.kMnkkmkkkmkkkmkkkmknMk.',
+  '.kMnkkmk.kmkkkmk.kmknMk.',
+  '.kMnkkmk.kYYYYmk.kmknMk.',
+  '.kMnkkmk.kYKYYmk.kmknMk.',
+  '.kMnkkmk.kYYYYmk.kmknMk.',
+  '.kMnkkmkkhhhhhhk.kmknMk.',
+  '.kMnkkmk.kmkkkmk.kmknMk.',
+  '.kMnkkmkkkmkkkmk.kmknMk.',
+  '.kMnkkmkPssssssPkkmknMk.',
+  '.kMnkkmkPskssksPkkmknMk.',
+  '.kMnkkmkPssssssPkkmknMk.',
+  '.kMnkkmkPssssssPkkmknMk.',
+  '.kMnkkmkPPPPPPPPkkmknMk.',
+  '.kMnkkmkPPPPPPPPkkmknMk.',
+  '.kMnkkmkPPPPPPPPkkmknMk.',
+  '.kMnkkmkPPPPPPPPkkmknMk.',
+  '.kMnkkmkkkmkkkmk.kmknMk.',
+  '.kMnkkmk.kmk.kmk.kmknMk.',
+  '.kMnkkmk.kmk.kmk.kmknMk.',
+  '.kMnkkmkkkmkkkmkkkmknMk.',
+  '.knnnnnnnnnnnnnnnnnnnnk.',
+  '..kkkkkkkkkkkkkkkkkkkk..'
 ];
-
-/* ---------- sapper mine: squat charge with a blinking lamp ----- */
+/* ---------- mine ---------- */
 SPR.mineIdle = [
-  '..kkkkkk..',
-  '.kmmmmmmk.',
-  'kmmnnnnmmk',
-  'kmnkyyknmk',
-  'kmnkccknmk',
-  'kmmnnnnmmk',
-  '.kmmmmmmk.',
-  '..kkkkkk..',
-  '...kMMk...',
-  '...kKKk...'
+  '....knkknk....',
+  '.....k..k.....',
+  '....kkkkkk....',
+  '...kMMMMMMk...',
+  '..kmmmmmmmmk..',
+  '.kkmmmyrmmmkk.',
+  'knkmmmrrmmmknk',
+  '.kkmMMMMMMmkk.',
+  '..kmmmmmmmmk..',
+  '...kMMMMMMk...',
+  '....kkkkkk....',
+  '..k.knkknk.k..',
+  '.knk.k..k.knk.',
+  '..k........k..'
 ];
-
-/* ---------- boss: armoured core with a heavy shell ---------- */
-SPR.bossIdle = [
-  '........kkkkkkkk........',
-  '......kkRRRRRRRRkk......',
-  '.....kRRRRRRRRRRRRk.....',
-  '....kRRkkkkkkkkkkRRk....',
-  '...kRRkSSSSSSSSSSkRRk...',
-  '...kRkSSrrrrrrrrSSkRk...',
-  '..kRRkSrrwwwwwwrrSkRRk..',
-  '..kRkSrrwwkkkkwwrrSkRk..',
-  '..kRkSrwkkyyyykkwrSkRk..',
-  '..kRRkSrwkkyyyykkwrSkRRk',
-  '..kRkSrrwwkkkkwwrrSkRk..',
-  '..kRRkSrrwwwwwwrrSkRRk..',
-  '...kRkSSrrrrrrrrSSkRk...',
-  '...kRRkSSSSSSSSSSkRRk...',
-  '....kRRkkkkkkkkkkRRk....',
-  '.....kRRRRRRRRRRRRk.....',
-  '......kkRRRRRRRRkk......',
-  '....kkk..kkkkkk..kkk....',
-  '...kMMk..........kMMk...',
-  '...kkkk..........kkkk...'
+/* ---------- totem ---------- */
+SPR.totemIdle = [
+  '......................',
+  '......................',
+  '......................',
+  '......kkkkkkkkkk......',
+  '.....kbbbbbbbbbbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbHHHHHHHHbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbAyyAAyyAbk.....',
+  '.....kbAyyAAyyAbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbAbbbbbbAbk.....',
+  '.kkkkkbAAAAAAAAbkkkkk.',
+  'kAAAAAbAAAAAAAAbAAAAAk',
+  '.kbbbbbAAAAAAAAbbbbbk.',
+  '..kkkkbbbbbbbbbbkkkk..',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbbbbbbbbbbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbAAAAAAAAbk.....',
+  '.....kbbbbbbbbbbk.....',
+  '....kkbAAAAAAAAbkk....',
+  '...kbbbbbbbbbbbbbbk...',
+  '...kbbbbbbbbbbbbbbk...',
+  '...kbbbbbbbbbbbbbbk...',
+  '....kkkkkkkkkkkkkk....'
 ];
-
-/* ---------- summoned ally: small drone ---------- */
+/* ---------- drone ---------- */
 SPR.drone = [
-  '..kkkkkk..',
-  '.kmMMMMmk.',
-  'kmMccccMmk',
-  'kMccwwccMk',
-  'kMccwwccMk',
-  'kmMccccMmk',
-  '.kmMMMMmk.',
-  '..kkkkkk..'
+  '.kkkk........kkkk.',
+  'kmmmmk......kmmmmk',
+  'MMMMMMk....kMMMMMM',
+  'nnnnnnkkkkkknnnnnn',
+  'kknnnnmmmmmmknnnnk',
+  '..kkkMMMMMMMMkkkk.',
+  '....kmMccccMmk....',
+  '....kmMcwwcMmk....',
+  '....knnnnnnnnk....',
+  '....kmMMMMMMmk....',
+  '....kMMMMMMMMk....',
+  '.....kmmmmmmk.....',
+  '......kCCCCk......',
+  '......kIIIIk......',
+  '.......kkkk.......',
+  '.......kck........'
 ];
-
-/* ---------- wisp: floating spark ---------- */
+/* ---------- wisp ---------- */
 SPR.wisp = [
-  '...kkkk...',
-  '..kvvvvk..',
-  '.kvVvvVvk.',
-  'kvVvwwvVvk',
-  'kvVvwwvVvk',
-  '.kvVvvVvk.',
-  '..kvvvvk..',
-  '...kkkk...'
+  '......kk......',
+  '.....kvvk.....',
+  '....kVVVVk....',
+  '...kvvvvvvk...',
+  '..kvvvwccvvk..',
+  '...kvvcccvk...',
+  '...kvvcccvk...',
+  '...kvvvvvvk...',
+  '...kVVVVVVk...',
+  '....kVVVVk....',
+  '.....kUUk.....',
+  '.....kkkk.....',
+  '....kUUUUk....',
+  '.....kkuk.....',
+  '.....kuk......',
+  '......k.......'
 ];
 
 /* bake lazily on first draw so the sheet costs nothing at load */
@@ -6026,8 +6564,13 @@ function drawFighter(f,t){
 
   const flip = (f.face || (f.aimAngle !== undefined ? Math.cos(f.aimAngle) : 1)) < 0
              || (f.lastDX !== undefined && f.lastDX < 0);
-  const sc = 2.1;
-  blit(img, 0, bob - 4, sc, flip);
+  /* Size by the sprite's own height so a detailed sheet and a small one both
+     land at the same height on screen — the body should stay ~40px tall no
+     matter how many pixels the art carries. */
+  const fh = SPR[pose] ? SPR[pose].length : 16;
+  /* a fighter should stand a little taller than a grunt (which draws ~30px) */
+  const sc = 46 / fh;
+  blit(img, 0, bob - 6 + (fh-16)*0.1, sc, flip);
 
   // weapon arm overlay so the kit reads at a glance
   drawFighterArm(f, t, swing, awake);
@@ -6056,17 +6599,22 @@ function drawFighterArm(f, t, swing, awake){
   const lift = swing ? Math.sin(Math.min(1, 1-(f.swingAnim||0)/0.28)*Math.PI)*5 : 0;
   ctx.save();
   ctx.rotate(aim);
-  ctx.translate(8, -1 - lift);
-  const g = ctx.createLinearGradient(0,-2,22,2);
+  /* hand height matches the taller survivor sprite, and the weapon is a
+     little longer so it still reads at the new body size */
+  ctx.translate(10, -6 - lift);
+  const g = ctx.createLinearGradient(0,-2,24,2);
   g.addColorStop(0, '#8d9aa4'); g.addColorStop(1, '#e6f2f8');
   ctx.fillStyle = g;
   ctx.strokeStyle = '#131b16';
   ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.moveTo(0,-2.6); ctx.lineTo(19,-1.6); ctx.lineTo(21,0); ctx.lineTo(19,1.6); ctx.lineTo(0,2.6);
+  ctx.moveTo(0,-3); ctx.lineTo(22,-1.9); ctx.lineTo(25,0); ctx.lineTo(22,1.9); ctx.lineTo(0,3);
   ctx.closePath(); ctx.fill(); ctx.stroke();
+  // muzzle collar so the gun has some mass
+  ctx.fillStyle = '#5b6a75';
+  ctx.beginPath(); ctx.rect(17,-2.6,3,5.2); ctx.fill(); ctx.stroke();
   if(swing){
-    glow(GLOW.amber, 21, 0, 30, .5);
+    glow(GLOW.amber, 25, 0, 34, .5);
   }
   ctx.restore();
 }
@@ -6886,8 +7434,10 @@ function drawSkeleton(sk,t){
   ctx.beginPath(); ctx.ellipse(0,10,9,3.4,0,0,TAU); ctx.fill();
   glow(GLOW.blue, 0, 0, 34, .28);
   const img = sprite('skeletonIdle');
-  if(img) blit(img, 0, -2 + Math.sin(t*4+sk.seed)*1.2, (sk.r*2.4)/14, false, 1);
-  if(sk.hit > 0){ ctx.globalAlpha = .5; blit(img, 0, -2, (sk.r*2.4)/14, false, 1); ctx.globalAlpha = 1; }
+  const skH = SPR.skeletonIdle.length;
+  const skSc = (sk.r*2.6)/skH;
+  if(img) blit(img, 0, -2 + Math.sin(t*4+sk.seed)*1.2, skSc, false, 1);
+  if(sk.hit > 0){ ctx.globalAlpha = .5; blit(img, 0, -2, skSc, false, 1); ctx.globalAlpha = 1; }
   ctx.restore();
 }
 function drawStrikeMark(st,t){
@@ -6957,7 +7507,7 @@ function drawTotem(tot,t){
   ctx.fillStyle = 'rgba(6,12,10,.4)';
   ctx.beginPath(); ctx.ellipse(0, tot.r*.7, tot.r*.8, tot.r*.3, 0, 0, TAU); ctx.fill();
   const img = sprite('totemIdle');
-  if(img) blit(img, 0, -4 + Math.sin(t*2.4+tot.seed)*1.4, (tot.r*2.2)/14, false, .55 + .45*p);
+  if(img) blit(img, 0, -4 + Math.sin(t*2.4+tot.seed)*1.4, (tot.r*2.9)/SPR.totemIdle.length, false, .55 + .45*p);
   // rising heal motes
   for(let i=0;i<3;i++){
     const yy = -((t*22 + i*16) % 40);
@@ -6977,7 +7527,7 @@ function drawCage(cg,t){
     // the captive pacing inside
     const img = sprite('playerIdle');
     const sway = Math.sin(t*1.6 + cg.seed)*3;
-    if(img) blit(img, sway, -4, 1.5, Math.cos(t*.8+cg.seed) < 0, .85);
+    if(img) blit(img, sway, -4, 21/SPR.cageIdle.length, Math.cos(t*.8+cg.seed) < 0, .85);
     // bars in front
     const cage = sprite('cageIdle');
     if(cage) blit(cage, 0, 0, 2.2, false, 1);
@@ -6988,7 +7538,7 @@ function drawCage(cg,t){
     // sprung open: bars fly apart
     const k = clamp(cg.open/.6, 0, 1);
     const img = sprite('playerIdle');
-    if(img){ ctx.globalAlpha = k*.8; blit(img, 0, -4, 1.5, false, 1); ctx.globalAlpha = 1; }
+    if(img){ ctx.globalAlpha = k*.8; blit(img, 0, -4, 21/SPR.cageIdle.length, false, 1); ctx.globalAlpha = 1; }
     ctx.strokeStyle = `rgba(216,255,158,${k*.8})`;
     ctx.lineWidth = 2;
     for(let i=0;i<4;i++){
@@ -7014,7 +7564,7 @@ function drawMine2(m,t){
   ctx.translate(m.x, m.y);
   glow(GLOW.amber, 0, 0, 24, .35 + .25*Math.sin(t*8));
   const img = sprite('mineIdle');
-  if(img) blit(img, 0, 0, .9, false, 1);
+  if(img) blit(img, 0, 0, 9/SPR.mineIdle.length, false, 1);
   ctx.restore();
 }
 function drawShockwave(w,t){
@@ -7645,7 +8195,9 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     collectDrop, spawnBuildingLoot, spawnBuildingGuards, beginCooldown, beginRound, W, H,
     sprite, SPR, drawFighter, drawEnemy, allyList, allyTargetsOf:()=>allyList(),
     spawnBuildingCages, freeCage, spawnBoss, nearestSquadMember, trapVictims,
-    solidAt, blockedAhead, findPath, navInit, buildingDoor, steerAround
+    solidAt, blockedAhead, findPath, navInit, buildingDoor, steerAround,
+    updateBuildings, spawnBuildingGuards, spawnBuildingLoot, spawnBuildingCages,
+    newGame, endGame, fighter, nearest, cloneMove, tickCooldown, pointInBuilding
   };
 }
 })();

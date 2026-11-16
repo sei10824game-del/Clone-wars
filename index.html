@@ -9,8 +9,8 @@
   <meta name="format-detection" content="telephone=no" />
   <meta name="theme-color" content="#101816" />
   <title>CLONE SURVIVORS — クローンサバイバーズ</title>
-  <link rel="stylesheet" href="style.css?v=12" />
-  <meta name="build-version" content="2.1.1" />
+  <link rel="stylesheet" href="style.css?v=13" />
+  <meta name="build-version" content="2.2.0" />
 </head>
 <body>
   <div class="app">
@@ -33,7 +33,7 @@
             <div class="canvas-vignette"></div>
             <button id="touchDash" class="touch-dash" aria-label="ダッシュ">ϟ<small>DASH</small></button>
             <div class="touch-stick" id="touchStick" aria-hidden="true"><i class="stick-base"></i><i class="stick-knob" id="stickKnob"></i><span class="stick-hint">MOVE</span></div>
-            <div class="hud" id="hud"><div class="hud-left"><div class="hud-label">STAGE <b id="stageNumber">01</b></div><div class="stage-progress"><i id="stageFill"></i></div><div class="hud-sub"><span>次のステージまで</span><b id="timer">00:30</b></div></div><div class="hud-right"><span>生存クローン</span><b id="cloneCount">00</b><i></i><span>撃破</span><b id="killCount">00</b></div></div>
+            <div class="hud" id="hud"><div class="hud-left"><div class="hud-label">STAGE <b id="stageNumber">01</b></div><div class="stage-progress"><i id="stageFill"></i></div><div class="hud-sub"><span>次のステージまで</span><b id="timer">00:30</b></div><div class="hud-squad" id="squadNote"></div></div><div class="hud-right"><span>生存クローン</span><b id="cloneCount">00</b><i></i><span>撃破</span><b id="killCount">00</b></div></div>
             <div class="boss-bar hidden" id="bossBar">
               <div class="boss-meta"><span class="boss-tag">◆ BOSS</span><b id="bossName">—</b><em id="bossSub"></em><span id="bossPercent">0 / 0</span></div>
               <div class="boss-track"><i id="bossFill"></i></div>
@@ -51,9 +51,9 @@
             </div>
             <div id="announcement" class="announcement"></div>
           </div>
-          <div class="game-bottomline"><span><i></i> SYSTEM STATUS: <b>ONLINE</b></span><span>自動攻撃 ON <span class="separator">/</span> 移動して生き延びよう</span><span>BUILD <b id="buildTag">2.1.1</b></span></div>
+          <div class="game-bottomline"><span><i></i> SYSTEM STATUS: <b>ONLINE</b></span><span>自動攻撃 ON <span class="separator">/</span> 移動して生き延びよう</span><span>BUILD <b id="buildTag">2.2.0</b></span></div>
         </div>
-        <div class="under-game"><div><span class="key-icon">⌘</span><span><b>HOW TO PLAY</b><small>操作方法</small></span></div><p class="kb-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> または <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> で移動 <span>／</span> <kbd>SPACE</kbd> でダッシュ <span>／</span> <kbd>P</kbd> で一時停止 <span>／</span> 武器はレベルアップで自動攻撃</p><p class="touch-only">ゲーム画面を指でドラッグして移動 <span>／</span> 右下の ϟ でダッシュ <span>／</span> 武器は自動攻撃 <span>／</span> 左上の ⛶ で全画面</p></div>
+        <div class="under-game"><div><span class="key-icon">⌘</span><span><b>HOW TO PLAY</b><small>操作方法</small></span></div><p class="kb-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> または <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> で移動 <span>／</span> <kbd>SPACE</kbd> でダッシュ <span>／</span> <kbd>P</kbd> で一時停止 <span>／</span> 武器はレベルアップで自動攻撃</p><p class="touch-only">ゲーム画面を指でドラッグして移動 <span>／</span> 右下の ϟ でダッシュ <span>／</span> 武器は自動攻撃 <span>／</span> 倒れたら近くのクローンに乗り移る <span>／</span> 左上の ⛶ で全画面</p></div>
       </section>
       <aside class="sidebar">
         <div class="side-title"><span>FIELD GUIDE</span><span>01 — 03</span></div>
@@ -65,6 +65,6 @@
     </main>
     <footer class="footer"><span>© 2026 CLONE SURVIVORS</span><span>BUILT FOR SURVIVAL <i>✳</i></span><span>SURVIVE TOGETHER.</span></footer>
   </div>
-  <script src="game.js?v=12"></script>
+  <script src="game.js?v=13"></script>
 </body>
 </html>
