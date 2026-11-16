@@ -260,7 +260,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
 @media (pointer:coarse){body.immersive .hud-right{margin-top:30px}}
 
 </style>
-  <meta name="build-version" content="2.2.0" />
+  <meta name="build-version" content="2.2.1" />
 </head>
 <body>
   <div class="app">
@@ -301,7 +301,7 @@ body.immersive .hud-right{padding-right:0;margin-top:26px}
             </div>
             <div id="announcement" class="announcement"></div>
           </div>
-          <div class="game-bottomline"><span><i></i> SYSTEM STATUS: <b>ONLINE</b></span><span>自動攻撃 ON <span class="separator">/</span> 移動して生き延びよう</span><span>BUILD <b id="buildTag">2.2.0</b></span></div>
+          <div class="game-bottomline"><span><i></i> SYSTEM STATUS: <b>ONLINE</b></span><span>自動攻撃 ON <span class="separator">/</span> 移動して生き延びよう</span><span>BUILD <b id="buildTag">2.2.1</b></span></div>
         </div>
         <div class="under-game"><div><span class="key-icon">⌘</span><span><b>HOW TO PLAY</b><small>操作方法</small></span></div><p class="kb-only"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> または <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> で移動 <span>／</span> <kbd>SPACE</kbd> でダッシュ <span>／</span> <kbd>P</kbd> で一時停止 <span>／</span> 武器はレベルアップで自動攻撃</p><p class="touch-only">ゲーム画面を指でドラッグして移動 <span>／</span> 右下の ϟ でダッシュ <span>／</span> 武器は自動攻撃 <span>／</span> 倒れたら近くのクローンに乗り移る <span>／</span> 左上の ⛶ で全画面</p></div>
       </section>
@@ -1032,6 +1032,12 @@ function newGame(){
 }
 const threshold = f => 100 + (f.level-1)*60;
 
+/* Loot handling is deliberately identical for every squad member: the same
+   pull radius and the same touch radius. Giving the original a bigger magnet
+   made clones feel like hired help rather than other yous. */
+const MAGNET_REACH = 118;   // distance at which a drop starts drifting in
+const LOOT_TOUCH   = 26;    // distance at which it is actually collected
+
 function stat(f){
   const n = id => (f.upgrades||{})[id]||0;
   const pw = n('power');
@@ -1295,6 +1301,9 @@ function updateSquadActivity(){
   if(fighting) bits.push('戦闘 '+fighting);
   if(scouting) bits.push('探索 '+scouting);
   if(looting) bits.push('回収 '+looting);
+  /* how many rooms the squad (not just you) has opened up */
+  const opened = worldEnt.buildings.filter(b=>b.entered).length;
+  if(opened) bits.push('施設 '+opened);
   el.textContent = bits.join(' / ');
 }
 function updateBossBar(){
@@ -4540,8 +4549,43 @@ function qValues(state){
    pushing into buildings, not orbiting the anchor — but a clone never wanders
    so far that it abandons the fight, and it never picks the exact same spot
    twice in a row. */
+/* Is this clone standing in a room that still has something to do, and what is
+   the nearest thing there? Returns null when the room is done or we are not in
+   one. Used so a clone finishes a facility instead of drifting off. */
+function roomBusiness(c){
+  for(const b of worldEnt.buildings){
+    if(b.cleared) continue;
+    if(!pointInBuilding(c.x, c.y, b)) continue;
+    let best = null, bd = Infinity;
+    for(const dr of game.drops){
+      if(!dr.alive || dr.building !== b) continue;
+      const dd = Math.hypot(dr.x-c.x, dr.y-c.y);
+      if(dd < bd){ bd = dd; best = {x:dr.x, y:dr.y}; }
+    }
+    for(const cg of (game.cages||[])){
+      if(cg.freed || cg.building !== b) continue;
+      const dd = Math.hypot(cg.x-c.x, cg.y-c.y);
+      if(dd < bd){ bd = dd; best = {x:cg.x, y:cg.y}; }
+    }
+    for(const e of game.enemies){
+      if(!e.alive || e.building !== b || e.charm > 0) continue;
+      const dd = Math.hypot(e.x-c.x, e.y-c.y);
+      if(dd < bd){ bd = dd; best = {x:e.x, y:e.y}; }
+    }
+    return best;   // null when the room is truly finished
+  }
+  return null;
+}
+
 function pickExploreSpot(c){
   const anchor = game.roundAnchor && game.roundAnchor.x ? game.roundAnchor : game.player;
+
+  /* If this clone is standing in a room that is not finished yet, finish it.
+     Picking a fresh room at random used to pull the squad out mid-sweep, which
+     left half-empty rooms behind forever (and they never counted as cleared). */
+  const busy = roomBusiness(c);
+  if(busy) return busy;
+
   const REACH = 1500;                       // how far a clone will scout out
   const roomy = [];
   for(const b of worldEnt.buildings){
@@ -4591,7 +4635,14 @@ function pickExploreSpot(c){
 }
 
 function cloneMove(c,dt){
-  const [target,d] = nearest(c);
+  let [target, d] = nearest(c);
+
+  /* If this clone is inside an unfinished room, that room comes first. Chasing
+     a guard that wandered out (or an enemy across the map) used to pull the
+     squad out of a half-looted building, so the room never finished and the
+     "cleared" state never arrived. Only a close threat overrides the sweep. */
+  const roomWork = roomBusiness(c);
+  if(roomWork && target && d > 260) target = null;
 
   /* When there is nothing to fight, a clone should still do something.
      A clone has no special feeling about the player: the original is just
@@ -4624,7 +4675,18 @@ function cloneMove(c,dt){
         c.wanderStall = (c.wanderStall||0) + dt;
       }
       const reached = c.wanderGoal && gd < 70;
-      if(!c.wanderGoal || reached || c.wanderT <= 0 || (c.wanderStall||0) > 4.5){
+      /* If we are inside an unfinished room but heading somewhere outside it,
+         drop the old goal right away so the sweep is finished first. */
+      let leftRoom = false;
+      if(c.wanderGoal){
+        for(const b of worldEnt.buildings){
+          if(b.cleared) continue;               // note: no `entered` gate here —
+          if(!pointInBuilding(c.x, c.y, b)) continue;  // the goal may predate entry
+          if(!pointInBuilding(c.wanderGoal.x, c.wanderGoal.y, b)) leftRoom = true;
+          break;
+        }
+      }
+      if(!c.wanderGoal || reached || leftRoom || c.wanderT <= 0 || (c.wanderStall||0) > 4.5){
         c.wanderGoal = pickExploreSpot(c);
         c.wanderT = 9 + Math.random()*7;
         c.wanderBest = Infinity;
@@ -4817,11 +4879,23 @@ function tickCooldown(dt){
     cloneMove(c, dt);
   }
 
-  // pickups still work, guards stay put
-  const reach = 26;
+  /* Pickups keep working through the breather, for the whole squad — the
+     clones were previously not allowed to collect anything between rounds. */
+  const resters = [p, ...game.clones.filter(c=>c.alive)];
   for(const d of game.drops){
     if(!d.alive) continue;
-    if(dist(p, d) < reach + 14) collectDrop(d);
+    let taker = null, takerD = Infinity;
+    for(const f of resters){
+      if(!f.alive) continue;
+      const dd = dist(d, f);
+      if(dd < MAGNET_REACH && dd > 0){
+        const k = Math.min(1, dt*(3.4 + (MAGNET_REACH-dd)/40));
+        d.x += (f.x-d.x)*k;
+        d.y += (f.y-d.y)*k;
+      }
+      if(dd < LOOT_TOUCH && dd < takerD){ taker = f; takerD = dd; }
+    }
+    if(taker) collectDrop(d, taker);
   }
   game.drops = game.drops.filter(d=>d.alive);
   for(const r of game.rings){ r.life -= dt; r.r += (r.maxR-r.r)*dt*9; }
@@ -4865,21 +4939,34 @@ function beginRound(){
 
 /* entering a building spawns its loot + guards; clearing it marks it done */
 function updateBuildings(dt){
-  const p = game.player;
+  /* The whole squad is interchangeable: a facility event starts the moment
+     ANY member steps inside — the original, a clone, or a summoned unit.
+     Only checking the player meant a clone could be standing in a room and
+     nothing would ever spawn there. */
+  const squad = [game.player, ...game.clones].filter(f=>f && f.alive);
   for(const b of worldEnt.buildings){
-    const inside = pointInBuilding(p.x, p.y, b);
-    if(inside && !b.entered){
-      b.entered = true;
-      b.discovered = true;
-      spawnBuildingLoot(b);
-      spawnBuildingGuards(b);
-      spawnBuildingCages(b);
-      const band = depthLabel(b.depth);
-      const capNote = b.cages ? ' ・ 囚人 ' + b.cages : '';
-      notice('ENTERED · ' + b.name, band.label + ' / 戦利品 ' + b.loot + ' ・ 敵 ' + b.guards + capNote);
-      game.rings.push({x:b.x+b.w/2, y:b.y+b.h/2, r:30,
-        maxR:Math.max(b.w,b.h)*.7, life:.8, max:.8, color:band.color, width:5});
-      shake = Math.min(shake+2, 5);
+    if(!b.entered){
+      let opener = null;
+      for(const f of squad){
+        if(pointInBuilding(f.x, f.y, b)){ opener = f; break; }
+      }
+      if(opener){
+        b.entered = true;
+        b.discovered = true;
+        b.openedByClone = opener.clone === true;
+        spawnBuildingLoot(b);
+        spawnBuildingGuards(b);
+        spawnBuildingCages(b);
+        const band = depthLabel(b.depth);
+        const capNote = b.cages ? ' ・ 囚人 ' + b.cages : '';
+        /* say who walked in, so a clone finding a room reads on screen */
+        const who = (opener === game.player) ? '' : ' · クローン発見';
+        notice('ENTERED · ' + b.name + who,
+               band.label + ' / 戦利品 ' + b.loot + ' ・ 敵 ' + b.guards + capNote);
+        game.rings.push({x:b.x+b.w/2, y:b.y+b.h/2, r:30,
+          maxR:Math.max(b.w,b.h)*.7, life:.8, max:.8, color:band.color, width:5});
+        shake = Math.min(shake+2, 5);
+      }
     }
     if(!b.cleared && b.entered){
       const guardsAlive = game.enemies.some(e => e.alive && e.guard && e.building === b);
@@ -5464,23 +5551,24 @@ function tick(dt){
      further away, clones have to physically walk onto them. XP only ever goes
      to the fighter that made the pickup, which is what keeps levels private
      per individual. */
+  /* Loot is first come, first served — and the player is not special.
+     Every squad member has the same pull radius and the same touch radius,
+     so a clone that reaches a drop gets it (and the XP that comes with it). */
   const squad = [game.player, ...game.clones.filter(c=>c.alive)];
   for(const d of game.drops){
     if(!d.alive) continue;
     d.life -= dt;
     if(d.life <= 0){ d.alive = false; continue; }
-    let taker = null;
+    let taker = null, takerD = Infinity;
     for(const f of squad){
       if(!f.alive) continue;
       const dd = dist(d, f);
-      const magnetic = f === game.player;
-      const reach = magnetic ? 118 : 46;
-      if(dd < reach && dd > 0){
-        const k = Math.min(1, dt*(magnetic ? 2.4 + (118-dd)/28 : 3.4));
+      if(dd < MAGNET_REACH && dd > 0){
+        const k = Math.min(1, dt*(3.4 + (MAGNET_REACH-dd)/40));
         d.x += (f.x-d.x)*k;
         d.y += (f.y-d.y)*k;
       }
-      if(dd < (magnetic ? 26 : 22)){ taker = f; break; }
+      if(dd < LOOT_TOUCH && dd < takerD){ taker = f; takerD = dd; }
     }
     if(taker) collectDrop(d, taker);
   }
@@ -8515,7 +8603,8 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     spawnBuildingCages, freeCage, spawnBoss, nearestSquadMember, trapVictims,
     solidAt, blockedAhead, findPath, navInit, buildingDoor, steerAround,
     updateBuildings, spawnBuildingGuards, spawnBuildingLoot, spawnBuildingCages,
-    newGame, endGame, fighter, nearest, cloneMove, tickCooldown, pointInBuilding
+    newGame, endGame, fighter, nearest, cloneMove, tickCooldown, pointInBuilding,
+    roomBusiness, get touch(){ return touch; }, keys, beginCooldown, stageClear
   };
 }
 })();
