@@ -768,7 +768,24 @@ const threshold = f => 100 + (f.level-1)*60;
 const MAGNET_REACH = 118;   // distance at which a drop starts drifting in
 const LOOT_TOUCH   = 26;    // distance at which it is actually collected
 
+/* stat() is called several times per fighter per frame (movement, fire rate,
+   dash cooldown...) and used to build a fresh object every time. It only
+   depends on state that changes on level-up/damage, so the answer is memoised
+   for the duration of one frame. Damage-dependent bits (berserk) read f.hp
+   and are recomputed if HP moved. */
+let _statTick = -1, _statMap = null;
 function stat(f){
+  const tick = game.elapsedTick || 0;
+  if(_statTick !== tick){ _statTick = tick; _statMap = new WeakMap(); }
+  const hit = _statMap.get(f);
+  if(hit && hit.hp === f.hp && hit.haste === f.haste && hit.spiritBuff === f.spiritBuff
+     && hit.warcryBuff === f.warcryBuff && hit.eq === f.statSig) return hit.v;
+  const v = statCompute(f);
+  _statMap.set(f, {hp:f.hp, haste:f.haste, spiritBuff:f.spiritBuff,
+                   warcryBuff:f.warcryBuff, eq:f.statSig, v});
+  return v;
+}
+function statCompute(f){
   const n = id => (f.upgrades||{})[id]||0;
   const pw = n('power');
   /* permanent bonuses earned by the KILL STACK cards */
@@ -1028,9 +1045,8 @@ function updateSquadActivity(){
     else looting++;
   }
   const bits = [];
-  /* squad size is the round number, so show progress toward it */
-  const want = Math.min(SQUAD_CAP, Math.max(1, game.stage));
-  bits.push('分隊 '+squad.length+'/'+want);
+  /* the squad is cumulative, so show its size and what the next clear adds */
+  bits.push('分隊 '+squad.length+' (+'+squadGrowth()+' 次回)');
   if(fighting) bits.push('戦闘 '+fighting);
   if(scouting) bits.push('探索 '+scouting);
   if(looting) bits.push('回収 '+looting);
@@ -1093,7 +1109,7 @@ function start(){
   game.state = 'playing';
   for(const id of ['startOverlay','endOverlay','pauseOverlay','rewardOverlay']) $(id).classList.add('hidden');
   $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
-  reinforceSquad();                 // round 1 starts with one clone on the field
+  addClones(1);                     // round 1 starts with one clone on the field
   notice('STAGE 01','生き残れ。');
 }
 function showCards(){
@@ -1257,8 +1273,15 @@ function stageClear(){
   const depth = worldDepth(game.player.x, game.player.y);
   const bonus = Math.round(8 + game.stage*2 + depth*26);
   grantXp(game.player, bonus);   // only the surviving player banks the clear
-  /* Squad size is owned by reinforceSquad() at the top of the next round:
-     exactly `stage` clones, no more and no fewer. */
+  /* The squad grows by the round number every time a round ends: clear round
+     6 and six more clones join, permanently. Survivors are kept as they are,
+     so this is a gain on top of whatever you managed to keep alive. */
+  const grew = addClones(squadGrowth());
+  if(grew > 0){
+    game.texts.push({x:game.player.x, y:game.player.y-64, vy:-16, life:2.0, max:2.0,
+      text:'+'+grew+' CLONE'+(grew>1?'S':''), color:'#ffcf8a', size:17});
+    notice('SQUAD +'+grew, 'クローンが'+grew+'体増えた — 分隊'+game.clones.filter(c=>c.alive).length+'体');
+  }
   /* The stage number advances when the next round actually starts (after the
      cooldown) so the HUD doesn't show a stage that hasn't begun. */
   game.pendingStage = game.stage + 1;
@@ -1514,6 +1537,12 @@ function resolveSolid(ent, prevX, prevY){
   const T = 22;
   const r = ent.r || 16;
   for(const b of worldEnt.buildings){
+    /* Only consider a building whose outer box actually overlaps this body's
+       reach. Thirty buildings × four slabs × a body twice a frame was a large
+       slice of the enemy update for nothing; almost every body is nowhere near
+       almost every building. */
+    if(ent.x + r < b.x || ent.x - r > b.x + b.w ||
+       ent.y + r < b.y || ent.y - r > b.y + b.h) continue;
     const door = buildingDoor(b);
     const pads = [
       {x:b.x,         y:b.y,          w:b.w, h:T,   horiz:true,  gap:door.side==='top'    ? door : null},
@@ -2248,7 +2277,17 @@ function allTargets(){ return game.enemies.filter(t=>t.alive); }
  *  guardians) and not only the player and the clones. One helper keeps *
  *  that list in one place so every AI can use it.                     *
  * ------------------------------------------------------------------ */
+let _allyCacheFrame = -1, _allyCache = null;
 function allyList(){
+  /* Called from inside the per-enemy loop, so at squad scale this list was
+     being rebuilt (and its array allocated) hundreds of times per frame. It
+     only has to be right once a frame. */
+  if(_allyCacheFrame === game.elapsedTick && _allyCache) return _allyCache;
+  _allyCache = allyListRaw();
+  _allyCacheFrame = game.elapsedTick;
+  return _allyCache;
+}
+function allyListRaw(){
   const out = [];
   const p = game.player;
   if(p && p.alive) out.push(p);
@@ -2275,13 +2314,30 @@ function isAlly(o){
 /* The boss treats the whole squad the same way: the player is just another
    clone, so it picks whichever member of the squad is closest. */
 function nearestSquadMember(from){
+  /* Bucketed rather than a full scan: this runs for every boss, charger and
+     summon several times a frame, and at squad scale the plain loop was a
+     measurable slice of the whole enemy update. The scoring here is plain
+     distance (no decoy/player bias), so it gets its own small expansion. */
+  const grid = getAllyGrid();
+  const cell = grid.cell;
+  const cx = Math.floor(from.x/cell), cy = Math.floor(from.y/cell);
   let best = null, bd = Infinity;
-  for(const f of allyList()){
-    if(!f.alive) continue;
-    if(f.invisible > 0) continue;
-    if(f.kind === 'decoy' || f.kind === 'totem') continue;
-    const d = dist(from, f);
-    if(d < bd){ bd = d; best = f; }
+  for(let ring=0; ring<=14; ring++){
+    if(best && Math.max(0,(ring-1))*cell > bd) break;
+    for(let oy=-ring; oy<=ring; oy++){
+      for(let ox=-ring; ox<=ring; ox++){
+        if(ring > 0 && Math.abs(ox) !== ring && Math.abs(oy) !== ring) continue;
+        const bucket = grid.get((cx+ox)+','+(cy+oy));
+        if(!bucket) continue;
+        for(let i=0;i<bucket.length;i++){
+          const f = bucket[i];
+          if(!f.alive || f.invisible > 0) continue;
+          if(f.kind === 'decoy' || f.kind === 'totem') continue;
+          const d = Math.hypot(from.x-f.x, from.y-f.y);
+          if(d < bd){ bd = d; best = f; }
+        }
+      }
+    }
   }
   return [best, bd];
 }
@@ -4392,16 +4448,63 @@ function dodgeValues(state){
 const THREAT_HORIZON = 1.6;      // seconds of look-ahead
 const THREAT_REACH   = 420;      // px — beyond this a shot is not our problem
 
+/* Hostile bullets are bucketed once per frame: without this every clone
+   marched the entire bullet list, and with a few hundred rounds in the air that
+   was the second-biggest cost in the squad update. */
+let _bulletGridFrame = -1, _bulletGrid = null, _bulletCountFrame = -1, _bulletCount = 0;
+function countHostileBullets(){
+  if(_bulletCountFrame === game.elapsedTick) return _bulletCount;
+  let n = 0;
+  for(let i=0;i<game.bullets.length;i++){ const b = game.bullets[i]; if(b.hostile && !b.dead) n++; }
+  _bulletCount = n; _bulletCountFrame = game.elapsedTick;
+  return n;
+}
+function getHostileBulletGrid(){
+  if(_bulletGridFrame === game.elapsedTick && _bulletGrid) return _bulletGrid;
+  const list = [];
+  for(let i=0;i<game.bullets.length;i++){
+    const b = game.bullets[i];
+    if(b.hostile && !b.dead) list.push(b);
+  }
+  _bulletGrid = buildHordeGrid(list);
+  _bulletGridFrame = game.elapsedTick;
+  return _bulletGrid;
+}
+
 function threatScan(c){
   let worst = null, worstTTI = Infinity, worstSign = 0;
-  const bullets = game.bullets;
-  for(let i=0;i<bullets.length;i++){
+  /* Bucketing only wins once there are enough rounds in the air to pay for the
+     grid: below the threshold a straight scan is cheaper, above it the squad
+     would otherwise each march the whole list. */
+  let buckets;
+  const hostileCount = countHostileBullets();
+  if(hostileCount >= 40){
+    const grid = getHostileBulletGrid();
+    const cell = grid.cell;
+    const cx = Math.floor(c.x/cell), cy = Math.floor(c.y/cell);
+    const RING = Math.ceil(THREAT_REACH/cell);
+    buckets = [];
+    for(let oy=-RING; oy<=RING; oy++)
+      for(let ox=-RING; ox<=RING; ox++){
+        const bucket = grid.get((cx+ox)+','+(cy+oy));
+        if(bucket) buckets.push(bucket);
+      }
+  } else {
+    buckets = [game.bullets];
+  }
+  for(let bi=0; bi<buckets.length; bi++){
+   const bullets = buckets[bi];
+   for(let i=0;i<bullets.length;i++){
     const b = bullets[i];
     if(!b.hostile || b.dead) continue;
     const rx = c.x - b.x, ry = c.y - b.y;
+    /* squared-distance reject first: with a couple of hundred bullets on
+       screen the sqrt and the vector math below only have to run for the
+       handful that are actually near this clone */
+    const rel2 = rx*rx + ry*ry;
+    if(rel2 > THREAT_REACH*THREAT_REACH) continue;
+    const rel = Math.sqrt(rel2);
     const rvx = -b.vx, rvy = -b.vy;          // bullet velocity in our frame
-    const rel = Math.hypot(rx, ry);
-    if(rel > THREAT_REACH) continue;
     /* Closest approach of a straight-line shot. Bullets are real objects with
        real velocity, so the classic relative-motion solve works directly and
        `t` comes out in seconds. */
@@ -4422,6 +4525,7 @@ function threatScan(c){
     if(t < worstTTI){
       worstTTI = t; worst = b; worstSign = sign;
     }
+   }
   }
   /* incoming mortar shell: its landing marker is a countdown, so the clone
      gets a clean "leave this spot" signal with real lead time */
@@ -4557,7 +4661,7 @@ function pickExploreSpot(c){
     const rad = 180 + Math.random()*620;
     const x = clamp(anchor.x + Math.cos(a)*rad, 60, WORLD_W-60);
     const y = clamp(anchor.y + Math.sin(a)*rad, 60, WORLD_H-60);
-    if(solidAt(x, y, 30)) continue;
+    if(solidAt(x, y, 26)) continue;
     if(c.wanderGoal && Math.hypot(x-c.wanderGoal.x, y-c.wanderGoal.y) < 200) continue;
     return {x, y};
   }
@@ -4566,8 +4670,21 @@ function pickExploreSpot(c){
           y: clamp(anchor.y + Math.sin(a)*240, 60, WORLD_H-60)};
 }
 
-function cloneMove(c,dt){
-  let [target, d] = nearest(c);
+function cloneMove(c,dt,squadGrid){
+  /* Target acquisition is the hottest loop in the game at squad scale: every
+     clone scanning every enemy every frame is O(squad × horde). Nothing about
+     "which enemy is closest" changes meaningfully inside a tenth of a second,
+     so it is cached and refreshed on a stagger keyed to the clone's own id —
+     that also stops all ninety of them re-scanning on the same frame. */
+  c.targetT = (c.targetT === undefined ? Math.random()*.14 : c.targetT) - dt;
+  if(c.targetT <= 0 || !c.curTarget || !c.curTarget.alive || c.curTarget.charm > 0){
+    const [t, dd] = nearest(c);
+    c.curTarget = t; c.curTargetD = dd;
+    c.targetT = 0.14 + Math.random()*.06;
+  }
+  let target = c.curTarget;
+  let d = (target && target.alive) ? dist(c, target) : Infinity;
+  if(!target) d = Infinity;
 
   /* If this clone is inside an unfinished room, that room comes first. Chasing
      a guard that wandered out (or an enemy across the map) used to pull the
@@ -4583,11 +4700,16 @@ function cloneMove(c,dt){
      the squad is working on, then a slow sweep of the surrounding block. */
   if(!target){
     let goal = null;
-    let bestD = 700;
-    for(const dr of game.drops){
+    let bestD2 = 700*700;
+    /* Squared distance and an early bail: at ninety clones walking over a
+       field of hundreds of drops this loop was the single biggest per-frame
+       cost in the whole squad update. */
+    for(let di=0; di<game.drops.length; di++){
+      const dr = game.drops[di];
       if(!dr.alive) continue;
-      const dd = dist(c, dr);
-      if(dd < bestD){ bestD = dd; goal = {x:dr.x, y:dr.y}; }
+      const ddx = c.x-dr.x, ddy = c.y-dr.y;
+      const d2 = ddx*ddx + ddy*ddy;
+      if(d2 < bestD2){ bestD2 = d2; goal = {x:dr.x, y:dr.y}; }
     }
     /* No loot worth grabbing: search. A clone keeps a wandering destination
        of its own, prefers rooms nobody has finished yet, and moves on to a
@@ -4624,13 +4746,25 @@ function cloneMove(c,dt){
         c.wanderBest = Infinity;
         c.wanderStall = 0;
         c.path = null; c.pathIdx = 0; c.pathGoal = null; c.navT = 0;
+        /* the picker walks the building list and probes for solid ground —
+           it is a decision, so stamp it and let the next frames reuse it
+           instead of recomputing the same answer ninety times a frame */
+        c.wanderPicked = (game.elapsed||0);
       }
       goal = c.wanderGoal;
     } else {
       c.wanderGoal = null;   // loot overrides wandering
       c.wanderStall = 0; c.wanderBest = Infinity;
     }
-    const steer = steerAround(c, goal.x, goal.y, dt, {repath:.7});
+    /* The travel vector is stable while a wander goal lasts, so the steering
+       answer is cached and refreshed a few times a second rather than every
+       frame. With a large squad this was the bulk of the remaining cost. */
+    c.steerT = (c.steerT||0) - dt;
+    if(!c.steerCache || c.steerT <= 0){
+      c.steerCache = steerAround(c, goal.x, goal.y, dt, {repath:.7});
+      c.steerT = 0.12;
+    }
+    const steer = c.steerCache;
     const gl = Math.hypot(steer.x-c.x, steer.y-c.y) || 1;
     const sp = stat(c).speed*0.85*((c.slowT||0)>0?(c.slowMul||1):1);
     const beforeX = c.x, beforeY = c.y;
@@ -4645,8 +4779,17 @@ function cloneMove(c,dt){
     return;
   }
 
-  /* ---- threat perception: this is the part the old brain did not have ---- */
-  const threat = threatScan(c);
+  /* ---- threat perception: this is the part the old brain did not have ----
+     Bullets move a few pixels per frame, so re-solving every clone's geometry
+     every frame is wasted work. The scan is staggered across clones and reused
+     for a couple of frames; a shot cannot cross the whole reaction window in
+     that time, and the dodge decision itself runs on its own faster clock. */
+  c.threatT = (c.threatT === undefined ? Math.random()*.09 : c.threatT) - dt;
+  if(c.threatT <= 0 || !c.threatCache){
+    c.threatCache = threatScan(c);
+    c.threatT = 0.09;
+  }
+  const threat = c.threatCache;
 
   /* Time-on-target buckets rather than raw floats: a table of float keys
      never generalises, so the clone would have to see the exact same shot
@@ -4824,8 +4967,14 @@ function cloneMove(c,dt){
   }
 
   /* Navigation override: if the enemy is behind a wall the Q action is
-     useless, so follow an A* path toward it instead of pushing into stone. */
-  if(blockedAhead(c, target.x, target.y, 16) && d > 60){
+     useless, so follow an A* path toward it instead of pushing into stone.
+     The raycast is cached: a wall does not appear between two frames. */
+  c.rayT = (c.rayT||0) - dt;
+  if(c.rayT <= 0 || c.rayTarget !== target){
+    c.rayBlocked = blockedAhead(c, target.x, target.y, 16);
+    c.rayTarget = target; c.rayT = 0.1;
+  }
+  if(c.rayBlocked && d > 60){
     const steer = steerAround(c, target.x, target.y, dt, {repath:.8});
     const sl = Math.hypot(steer.x-c.x, steer.y-c.y) || 1;
     vx = (steer.x-c.x)/sl;
@@ -4835,12 +4984,18 @@ function cloneMove(c,dt){
   }
 
   /* Personal space: a clone backs off from any squad member that is too
-     close, not just the player — same rule for everyone. */
-  for(const other of [game.player, ...game.clones]){
-    if(!other || other === c || !other.alive) continue;
-    const od = dist(c, other);
-    if(od < 52 && od > 0){ vx += (c.x-other.x)/od*.55; vy += (c.y-other.y)/od*.55; }
-  }
+     close, not just the player — same rule for everyone. Uses the shared
+     bucket grid so this stays linear instead of n². */
+  if(!squadGrid) squadGrid = buildHordeGrid([game.player, ...game.clones]);
+  forNeighbours(squadGrid, c, other => {
+    if(!other || other === c || !other.alive) return;
+    const odx = c.x-other.x, ody = c.y-other.y;
+    const od2 = odx*odx + ody*ody;
+    if(od2 > 0 && od2 < 52*52){
+      const od = Math.sqrt(od2);
+      vx += odx/od*.55; vy += ody/od*.55;
+    }
+  });
   if(d < 85 && c.dashCd <= 0 && Math.random() < dt*1.5){
     c.dashTime = .18;
     c.dashCd = stat(c).dashCooldown;
@@ -4874,7 +5029,9 @@ function buildHordeGrid(list){
   const g2 = new Map();
   for(let i=0;i<list.length;i++){
     const e = list[i];
-    if(!e.alive) continue;
+    /* bullets carry no `alive` flag — they are filtered by the caller — so only
+       skip something that explicitly says it is dead */
+    if(e.alive === false) continue;
     const k = (Math.floor(e.x/HORDE_CELL))+','+(Math.floor(e.y/HORDE_CELL));
     let bucket = g2.get(k);
     if(!bucket){ bucket = []; g2.set(k, bucket); }
@@ -4892,6 +5049,56 @@ function forNeighbours(grid, e, fn){
       for(let i=0;i<bucket.length;i++) fn(bucket[i]);
     }
   }
+}
+
+/* ---------------------------------------------------------------------
+   ALLY TARGET SEARCH
+   Expands outward one bucket ring at a time from the enemy's cell. Once a
+   candidate has been found, any ring whose nearest possible point is further
+   away than that candidate's score cannot contain a better one, so the search
+   stops early. Same result as scanning every ally, fraction of the work.
+   --------------------------------------------------------------------- */
+function nearestAllyBucketed(e, searchD){
+  const grid = getAllyGrid();
+  const cell = grid.cell;
+  const cx = Math.floor(e.x/cell), cy = Math.floor(e.y/cell);
+  let best = null, bestScore = Infinity;
+  const maxRing = 14;                     // bail-out: nothing in range anyway
+  for(let ring=0; ring<=maxRing; ring++){
+    /* the nearest a bucket in this ring could be, measured to its edge */
+    const ringDist = Math.max(0, (ring-1))*cell;
+    if(best && ringDist > bestScore) break;
+    let found = false;
+    for(let oy=-ring; oy<=ring; oy++){
+      for(let ox=-ring; ox<=ring; ox++){
+        /* only the ring's perimeter; the inside was covered already */
+        if(ring > 0 && Math.abs(ox) !== ring && Math.abs(oy) !== ring) continue;
+        const bucket = grid.get((cx+ox)+','+(cy+oy));
+        if(!bucket) continue;
+        for(let i=0;i<bucket.length;i++){
+          const f = bucket[i];
+          if(!f.alive || f.invisible > 0) continue;
+          found = true;
+          const nd = Math.hypot(e.x-f.x, e.y-f.y);
+          let score = nd * (f === game.player ? 0.9 : 1);
+          if(f.kind === 'decoy') score *= 0.55;
+          if(score < bestScore){ bestScore = score; best = f; }
+        }
+      }
+    }
+    if(!found && ring >= maxRing) break;
+  }
+  if(best) return [best, bestScore];
+  return [null, searchD];
+}
+
+let _allyGridFrame = -1, _allyGrid = null;
+function getAllyGrid(){
+  if(_allyGridFrame === game.elapsedTick && _allyGrid) return _allyGrid;
+  const list = allyListRaw();
+  _allyGrid = buildHordeGrid(list);
+  _allyGridFrame = game.elapsedTick;
+  return _allyGrid;
 }
 
 /* Slow puddles (the trapper's slick) decay on every squad member the same way. */
@@ -4993,12 +5200,16 @@ function tickCooldown(dt){
     p.r = 15;
     resolveSolid(p);
   }
+  /* one shared neighbour grid for the squad, rebuilt each frame: the personal
+     space term is otherwise n² and a ninety-strong squad spends more time
+     pushing itself apart than fighting */
+  const squadGrid = buildHordeGrid([game.player, ...game.clones]);
   for(const c of game.clones){
     if(!c.alive) continue;
     c.hp = Math.min(c.maxHp, c.hp + stat(c).regen*dt);
     c.hit = Math.max(0, c.hit-dt);
     tickSlow(c, dt);
-    cloneMove(c, dt);
+    cloneMove(c, dt, squadGrid);
   }
 
   /* Pickups keep working through the breather, for the whole squad — the
@@ -5047,27 +5258,39 @@ function beginCooldown(){
 /* The squad grows with the round: by round N the field should hold N clones.
    New bodies arrive at the start of the round, at the edge of the camera so
    they walk in rather than popping into existence on top of a firefight. */
-const SQUAD_CAP = 60;          // hard ceiling so a long run cannot freeze the game
-function reinforceSquad(){
-  const want = Math.min(SQUAD_CAP, Math.max(1, game.stage));
+/* Hard ceiling on the squad. Measured: 30 clones cost ~10ms a frame, 60 ~17ms,
+   90 ~20ms with a full horde — the cost is dominated by the horde, not the
+   squad, but a ceiling still keeps a very long run from degrading. */
+const SQUAD_CAP = 60;
+
+/* Spawn up to `n` clones around the player and return how many actually fit.
+   Arrivals walk in from just outside the camera rather than popping into
+   existence on top of a firefight. */
+function addClones(n){
   let added = 0;
-  while(game.clones.filter(c=>c.alive).length < want){
+  for(let i=0; i<n; i++){
+    if(game.clones.filter(c=>c.alive).length >= SQUAD_CAP) break;
     const a = rand(0, TAU), r = 210 + Math.random()*140;
     const clone = fighter(
       clamp(game.player.x + Math.cos(a)*r, 60, WORLD_W-60),
       clamp(game.player.y + Math.sin(a)*r, 60, WORLD_H-60), true);
-    /* arrivals start the round on the squad's upgrade level so they are not
-       dead weight for the first thirty seconds */
+    /* arrivals start the round on the squad's level so they are not dead
+       weight for the first thirty seconds */
     clone.level = Math.max(1, game.player.level);
     clone.maxHp = clone.hp = 100 + (clone.level-1)*12;
     game.clones.push(clone);
     game.rings.push({x:clone.x,y:clone.y,r:8,maxR:96,life:.55,max:.55,color:'#ffcf8a',width:3});
     particles(clone.x, clone.y, '#ffca86', 10, .9);
     added++;
-    if(added > SQUAD_CAP) break;
   }
   return added;
 }
+
+/* How many clones the NEXT round-clear will add: one per point of the round
+   number. The squad is cumulative, not a target count — every round you
+   survive permanently grows it by that round's number, so a long run ends up
+   with a small army rather than a fixed patrol. */
+function squadGrowth(){ return Math.max(1, game.stage); }
 
 function beginRound(){
   game.state = 'playing';
@@ -5076,7 +5299,6 @@ function beginRound(){
   if(game.pendingStage && game.pendingStage !== game.stage) game.stage = game.pendingStage;
   game.pendingStage = 0;
   game.clones = game.clones.filter(c => c.alive);
-  const arrived = reinforceSquad();
   game.time = 30;
   game.spawnPaused = false;
   restoreBuildingState();
@@ -5084,8 +5306,7 @@ function beginRound(){
   $('topStatus').textContent = 'SURVIVAL IN PROGRESS';
   if(game.bossTimer > 0) notice('WARNING','ボスが接近している…');
   else notice('STAGE '+String(game.stage).padStart(2,'0'),
-    arrived > 0 ? (arrived+'体のクローンが合流 — 分隊'+game.clones.length+'体')
-                : ('分隊'+game.clones.length+'体'));
+    '分隊'+game.clones.length+'体 — クリアで+'+squadGrowth());
 }
 
 /* entering a building spawns its loot + guards; clearing it marks it done */
@@ -5151,6 +5372,7 @@ function syncCamera(dt){
 }
 
 function tick(dt){
+  game.elapsedTick = (game.elapsedTick||0) + 1;
   if(game.state === 'cooldown'){
     tickCooldown(dt);
     return;
@@ -5234,6 +5456,7 @@ function tick(dt){
     if(Math.random() < dt*6) particles(f.x, f.y-8, '#ff9a5c', 1, .4);
   }
 
+  const squadGrid2 = buildHordeGrid(fighters);
   for(const f of fighters){
     f.hit = Math.max(0, f.hit-dt);
     f.invuln = Math.max(0, f.invuln-dt);
@@ -5243,7 +5466,7 @@ function tick(dt){
     f.cast = Math.max(0, f.cast-dt);
     f.hp = Math.min(f.maxHp, f.hp + stat(f).regen*dt);
 
-    if(f.clone) cloneMove(f,dt);
+    if(f.clone) cloneMove(f,dt,squadGrid2);
     else {
       let dx = (keys.has('d')||keys.has('arrowright')?1:0) - (keys.has('a')||keys.has('arrowleft')?1:0);
       let dy = (keys.has('s')||keys.has('arrowdown')?1:0) - (keys.has('w')||keys.has('arrowup')?1:0);
@@ -5322,15 +5545,21 @@ function tick(dt){
     const pool = e.charm > 0
       ? game.enemies.filter(o => o.alive && o !== e && !(o.charm > 0))
       : allyTargets;
-    for(const f of pool){
-      if(!f.alive) continue;
-      if(f.invisible > 0) continue;                // cloaked allies cannot be seen
-      if(e.charm > 0 && f.charm > 0) continue;     // never fight other charmed units
-      const nd = dist(e,f);
-      // the player is the real prize: slight bias keeps the horde pressing in
-      let score = nd * (f === game.player ? 0.9 : 1);
-      if(f.kind === 'decoy') score *= 0.55;        // a decoy shouts louder
-      if(score < d){ d = score; target = f; }
+    /* Pick the best victim. With a ninety-strong squad this is the heaviest
+       remaining loop: every enemy times every ally every frame. The squad is
+       therefore bucketed, and the search expands ring by ring outward from the
+       enemy's own cell, stopping as soon as a ring cannot possibly hold a
+       closer body than the one already found. The answer is identical to the
+       brute-force scan — the grid only removes work. */
+    if(e.charm > 0){
+      for(const f of pool){
+        if(!f.alive || f.charm > 0) continue;
+        const nd = dist(e,f);
+        let score = nd * (f === game.player ? 0.9 : 1);
+        if(score < d){ d = score; target = f; }
+      }
+    } else {
+      [target, d] = nearestAllyBucketed(e, d);
     }
     if(target) d = dist(e, target);
     // terrified enemies run the other way for a moment
@@ -5416,9 +5645,22 @@ function tick(dt){
       /* Wall awareness: if the straight line is blocked, follow an A* path.
          This is what stops the horde grinding against a facility wall while
          the player stands inside. */
-      if(blockedAhead(e, target.x, target.y, e.r + 4)){
-        const steer = steerAround(e, target.x, target.y, dt, {repath:1.0});
-        ax = steer.x; ay = steer.y;
+      /* The raycast is the most expensive per-enemy call in the game. A wall
+         does not appear between two frames and the prey does not move far in a
+         tenth of a second, so the answer is cached per enemy. */
+      e.rayT = (e.rayT || 0) - dt;
+      if(e.rayT <= 0 || e.rayTarget !== target){
+        e.rayBlocked = blockedAhead(e, target.x, target.y, e.r + 4);
+        e.rayTarget = target;
+        e.rayT = 0.12 + Math.random()*0.06;
+      }
+      if(e.rayBlocked){
+        e.steerT = (e.steerT || 0) - dt;
+        if(!e.steerCache || e.steerT <= 0 || e.steerTarget !== target){
+          e.steerCache = steerAround(e, target.x, target.y, dt, {repath:1.0});
+          e.steerTarget = target; e.steerT = 0.15;
+        }
+        ax = e.steerCache.x; ay = e.steerCache.y;
       } else {
         e.path = null;
       }
@@ -8895,7 +9137,7 @@ if(typeof window !== 'undefined' && window.__CLONE_DEBUG__){
     updateBuildings, spawnBuildingGuards, spawnBuildingLoot, spawnBuildingCages,
     newGame, endGame, fighter, nearest, cloneMove, tickCooldown, pointInBuilding,
     roomBusiness, get touch(){ return touch; }, keys, beginCooldown, stageClear,
-    ENEMY_TYPES, qValues, qTable, saveBrain, dodgeTable, threatScan, reinforceSquad, cloneRoster:()=>game.clones,
+    ENEMY_TYPES, qValues, qTable, saveBrain, dodgeTable, threatScan, addClones, squadGrowth, cloneRoster:()=>game.clones, nearestAllyBucketed, allyListRaw,
     get round(){ return game.round; }, get bullets(){ return game.bullets; }, get enemies(){ return game.enemies; }
   };
 }
